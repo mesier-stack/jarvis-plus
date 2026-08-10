@@ -20,7 +20,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
+from urllib.request import Request, urlopen
 
 
 APP_NAME = "JARVIS+"
@@ -359,6 +360,8 @@ class VoiceEngine:
 
     @property
     def cloud_provider(self) -> str:
+        if os.getenv("ELEVENLABS_API_KEY"):
+            return "elevenlabs"
         if os.getenv("OPENAI_API_KEY"):
             return "openai"
         if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
@@ -421,9 +424,25 @@ class VoiceEngine:
             pass
 
     def _speak_cloud(self, text: str) -> None:
+        if self.cloud_provider == "elevenlabs":
+            try:
+                self._speak_elevenlabs(text)
+                return
+            except Exception:
+                if os.getenv("OPENAI_API_KEY"):
+                    self._speak_openai(text)
+                    return
+                if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+                    self._speak_gemini(text)
+                    return
+                raise
         if self.cloud_provider == "gemini":
             self._speak_gemini(text)
             return
+
+        self._speak_openai(text)
+
+    def _speak_openai(self, text: str) -> None:
 
         import winsound
         from openai import OpenAI
@@ -457,6 +476,53 @@ class VoiceEngine:
             winsound.PlaySound(temp_name, winsound.SND_FILENAME)
         finally:
             Path(temp_name).unlink(missing_ok=True)
+
+    def _speak_elevenlabs(self, text: str) -> None:
+        """Stream low-latency 24 kHz PCM directly to the speakers."""
+        import sounddevice as sd
+
+        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
+        endpoint = (
+            "https://api.elevenlabs.io/v1/text-to-speech/"
+            f"{quote(voice_id, safe='')}/stream?output_format=pcm_24000"
+        )
+        speed = {"fast": 1.12, "normal": 1.0, "slow": 0.86}[self.speed]
+        payload = json.dumps(
+            {
+                "text": text,
+                "model_id": os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
+                "voice_settings": {
+                    "stability": 0.48,
+                    "similarity_boost": 0.78,
+                    "style": 0.12,
+                    "use_speaker_boost": True,
+                    "speed": speed,
+                },
+            }
+        ).encode("utf-8")
+        request = Request(
+            endpoint,
+            data=payload,
+            headers={
+                "xi-api-key": os.environ["ELEVENLABS_API_KEY"],
+                "Content-Type": "application/json",
+                "Accept": "audio/pcm",
+            },
+            method="POST",
+        )
+        with urlopen(request, timeout=25) as response, sd.RawOutputStream(
+            samplerate=24_000, channels=1, dtype="int16", blocksize=0
+        ) as output:
+            pending = b""
+            while True:
+                chunk = response.read(4096)
+                if not chunk:
+                    break
+                audio = pending + chunk
+                aligned = len(audio) - (len(audio) % 2)
+                if aligned:
+                    output.write(audio[:aligned])
+                pending = audio[aligned:]
 
     def _speak_gemini(self, text: str) -> None:
         import winsound
@@ -600,7 +666,11 @@ class AIClient:
 def configure_ai_key(provider: str, api_key: str) -> None:
     """Activate an API key now and persist it for future Windows sessions."""
     provider = provider.lower().strip()
-    variable = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}.get(provider)
+    variable = {
+        "gemini": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "elevenlabs": "ELEVENLABS_API_KEY",
+    }.get(provider)
     key = api_key.strip()
     if not variable or len(key) < 16 or any(character.isspace() for character in key):
         raise ValueError("That API key does not look valid")
@@ -615,6 +685,32 @@ def configure_ai_key(provider: str, api_key: str) -> None:
             winreg.KEY_SET_VALUE,
         ) as registry:
             winreg.SetValueEx(registry, variable, 0, winreg.REG_SZ, key)
+
+
+def configure_voice_id(voice_id: str) -> None:
+    """Select an ElevenLabs voice now and for future Windows sessions."""
+    voice_id = voice_id.strip()
+    if len(voice_id) < 12 or any(character.isspace() for character in voice_id):
+        raise ValueError("That ElevenLabs voice ID does not look valid")
+    os.environ["ELEVENLABS_VOICE_ID"] = voice_id
+    if os.name == "nt":
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE
+        ) as registry:
+            winreg.SetValueEx(registry, "ELEVENLABS_VOICE_ID", 0, winreg.REG_SZ, voice_id)
+
+
+def verify_elevenlabs_key(api_key: str) -> None:
+    """Validate an ElevenLabs key without spending speech credits."""
+    request = Request(
+        "https://api.elevenlabs.io/v1/user",
+        headers={"xi-api-key": api_key, "Accept": "application/json"},
+    )
+    with urlopen(request, timeout=12) as response:
+        if response.status != 200:
+            raise RuntimeError(f"ElevenLabs returned status {response.status}")
 
 
 class JarvisBrain:

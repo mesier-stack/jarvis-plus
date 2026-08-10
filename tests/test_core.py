@@ -5,7 +5,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from jarvis_core import AIClient, JarvisBrain, MemoryStore, SafeCalculator, SystemActions
+from jarvis_core import AIClient, JarvisBrain, MemoryStore, SafeCalculator, SystemActions, VoiceEngine
 from updater import _safe_archive_members, version_tuple
 
 
@@ -109,6 +109,15 @@ class JarvisCoreTests(unittest.TestCase):
             clear=True,
         ):
             self.assertEqual(AIClient().provider, "openai")
+
+    def test_elevenlabs_has_voice_priority(self):
+        with patch.dict(
+            os.environ,
+            {"ELEVENLABS_API_KEY": "voice-test", "GEMINI_API_KEY": "chat-test"},
+            clear=True,
+        ):
+            voice = VoiceEngine.__new__(VoiceEngine)
+            self.assertEqual(voice.cloud_provider, "elevenlabs")
 
     def test_version_comparison_parts(self):
         self.assertGreater(version_tuple("3.1.0"), version_tuple("3.0.9"))

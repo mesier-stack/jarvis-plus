@@ -4,7 +4,7 @@ A native Windows learning assistant with a futuristic desktop HUD, local memory,
 voice input/output, safe PC controls, reminders, notes, system telemetry, a safe
 learning engine, and an optional OpenAI-powered conversational brain and natural voice.
 
-Version 3.3 uses a cinematic fullscreen reactor HUD. Press `Escape` to leave fullscreen
+Version 3.4 uses a cinematic fullscreen reactor HUD. Press `Escape` to leave fullscreen
 or `F11` to toggle it. The interface includes animated targeting rings, a voice
 waveform, system telemetry, learning status, quick directives, and a compact comms log.
 
@@ -99,6 +99,15 @@ Fast voice is now the default: it begins with a brisker delivery and only reads 
 essential first part of very long answers while leaving the complete answer visible.
 Say or type `voice faster`, `voice normal`, or `voice slower` to change the persistent
 speed. Use `voice test` to preview it.
+
+### ElevenLabs low-latency voice
+
+Press **VOICE SETUP**, paste your ElevenLabs API key, and keep the suggested voice ID
+or paste another ID from ElevenLabs **My Voices**. JARVIS+ uses `eleven_flash_v2_5`
+and streams 24 kHz PCM directly to the speakers, so playback begins while audio is
+still being generated. The key is stored only in the current Windows user's environment.
+If ElevenLabs is unavailable or its quota is exhausted, JARVIS+ automatically falls
+back to Gemini, OpenAI, or the local Windows voice.
 
 ## Build a standalone EXE
 

@@ -17,6 +17,8 @@ from jarvis_core import (
     SystemActions,
     VoiceEngine,
     configure_ai_key,
+    configure_voice_id,
+    verify_elevenlabs_key,
     watch_reminders,
 )
 from updater import UpdateClient, UpdateInfo
@@ -144,6 +146,7 @@ class JarvisApp(ctk.CTk):
         )
         self.provider_badge.pack(side="left", padx=8)
         self._top_button(controls, "AI SETUP", self._setup_ai, VIOLET).pack(side="left", padx=4)
+        self._top_button(controls, "VOICE SETUP", self._setup_voice, CYAN).pack(side="left", padx=4)
         self._top_button(controls, "FULLSCREEN", lambda: self._set_fullscreen(not self.fullscreen)).pack(
             side="left", padx=4
         )
@@ -510,6 +513,15 @@ class JarvisApp(ctk.CTk):
                     )
                 elif kind == "ai_error":
                     self._assistant_message(f"Gemini connection failed: {payload}", True, speak=False)
+                elif kind == "voice_ready":
+                    self.voice = VoiceEngine(self.voice.language, self.voice.speed)
+                    self._assistant_message(
+                        "ElevenLabs voice connected. Low-latency cinematic speech is online."
+                    )
+                elif kind == "voice_error":
+                    self._assistant_message(
+                        f"ElevenLabs connection failed: {payload}", True, speak=False
+                    )
                 elif kind == "update_ready":
                     self._assistant_message("Update verified. Restarting into the new version…", speak=False)
                     self.after(450, self._close)
@@ -563,6 +575,35 @@ class JarvisApp(ctk.CTk):
                 self.inbox.put(("ai_ready", True))
             except Exception as exc:
                 self.inbox.put(("ai_error", str(exc)))
+
+        threading.Thread(target=verify, daemon=True).start()
+
+    def _setup_voice(self) -> None:
+        key = simpledialog.askstring(
+            "JARVIS+ // ElevenLabs Voice",
+            "Paste your ElevenLabs API key. It stays on this PC and is never added to JARVIS files:",
+            show="•",
+            parent=self,
+        )
+        if not key:
+            return
+        voice_id = simpledialog.askstring(
+            "JARVIS+ // Voice Selection",
+            "Voice ID (the default is an original mature British voice):",
+            initialvalue=os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb"),
+            parent=self,
+        )
+        if not voice_id:
+            return
+
+        def verify() -> None:
+            try:
+                verify_elevenlabs_key(key.strip())
+                configure_ai_key("elevenlabs", key)
+                configure_voice_id(voice_id)
+                self.inbox.put(("voice_ready", True))
+            except Exception as exc:
+                self.inbox.put(("voice_error", str(exc)))
 
         threading.Thread(target=verify, daemon=True).start()
 
