@@ -4,9 +4,12 @@ A native Windows learning assistant with a futuristic desktop HUD, local memory,
 voice input/output, safe PC controls, reminders, notes, system telemetry, a safe
 learning engine, and an optional OpenAI-powered conversational brain and natural voice.
 
-Version 3.6 uses a cinematic fullscreen reactor HUD. Press `Escape` to leave fullscreen
-or `F11` to toggle it. The interface includes animated targeting rings, a voice
-waveform, system telemetry, learning status, quick directives, and a compact comms log.
+Version 3.7 introduces the MK IV circular intelligence interface. Press `Escape` to
+leave fullscreen or `F11` to toggle it. The circular core now dominates the screen,
+with layered mechanical rings, radial ticks, cyan/teal illumination, restrained amber
+accents, centered `J.A.R.V.I.S.` identification, floating telemetry, quick directives,
+and a dedicated conversation panel. The original vector graphics are drawn at runtime,
+so they remain sharp at different resolutions without bundling copied artwork or watermarks.
 
 ## Fast start on Windows
 

@@ -27,26 +27,26 @@ from version import VERSION
 
 ctk.set_appearance_mode("dark")
 
-VOID = "#01040A"
-PANEL = "#050B14"
-PANEL_ALT = "#07111D"
-LINE = "#123149"
-LINE_SOFT = "#0B2031"
-CYAN = "#37E8FF"
-CYAN_DIM = "#0A718B"
-BLUE = "#3688FF"
-VIOLET = "#8D7BFF"
-WHITE = "#EAFBFF"
-MUTED = "#60849D"
+VOID = "#001014"
+PANEL = "#021A21"
+PANEL_ALT = "#03262E"
+LINE = "#0C5662"
+LINE_SOFT = "#073640"
+CYAN = "#8DEFF1"
+CYAN_DIM = "#178A97"
+BLUE = "#31C8D4"
+VIOLET = "#63D3D7"
+WHITE = "#EDFFFF"
+MUTED = "#4F8D94"
 GREEN = "#4CFFB0"
-AMBER = "#FFBD59"
+AMBER = "#D8C64A"
 RED = "#FF577B"
 
 
 class JarvisApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("JARVIS+ // Cinematic Intelligence Interface")
+        self.title("J.A.R.V.I.S. // Circular Intelligence Interface")
         self.geometry("1440x900")
         self.minsize(1100, 700)
         self.configure(fg_color=VOID)
@@ -93,15 +93,15 @@ class JarvisApp(ctk.CTk):
 
         body = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
         body.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 8))
-        body.grid_columnconfigure(1, weight=1)
+        body.grid_columnconfigure(0, weight=3)
+        body.grid_columnconfigure(1, weight=2)
         body.grid_rowconfigure(0, weight=1)
-        self._build_left_hud(body)
         self._build_reactor(body)
         self._build_comms(body)
         self._build_command_bar()
 
     def _build_top_hud(self) -> None:
-        top = ctk.CTkFrame(self, height=78, corner_radius=0, fg_color=VOID)
+        top = ctk.CTkFrame(self, height=72, corner_radius=0, fg_color=VOID)
         top.grid(row=0, column=0, sticky="ew", padx=20)
         top.grid_columnconfigure(1, weight=1)
         top.grid_propagate(False)
@@ -109,14 +109,14 @@ class JarvisApp(ctk.CTk):
         brand = ctk.CTkFrame(top, fg_color="transparent")
         brand.grid(row=0, column=0, sticky="w", pady=12)
         ctk.CTkLabel(
-            brand, text="JARVIS", font=ctk.CTkFont("Segoe UI", 28, "bold"), text_color=WHITE
+            brand, text="J.A.R.V.I.S.", font=ctk.CTkFont("Segoe UI", 25, "bold"), text_color=WHITE
         ).pack(side="left")
         ctk.CTkLabel(
-            brand, text="+", font=ctk.CTkFont("Segoe UI", 28, "bold"), text_color=CYAN
+            brand, text="  //", font=ctk.CTkFont("Consolas", 18, "bold"), text_color=AMBER
         ).pack(side="left", padx=(4, 12))
         ctk.CTkLabel(
             brand,
-            text=f"CINEMATIC INTELLIGENCE SYSTEM  //  MK III  //  v{VERSION}",
+            text=f"CIRCULAR INTELLIGENCE CORE  //  MK IV  //  v{VERSION}",
             font=ctk.CTkFont("Consolas", 10),
             text_color=MUTED,
         ).pack(side="left", pady=(8, 0))
@@ -140,7 +140,7 @@ class JarvisApp(ctk.CTk):
             text=f"  {provider} CORE  ",
             height=28,
             corner_radius=4,
-            fg_color="#0B2832" if provider != "LOCAL" else PANEL_ALT,
+            fg_color="#08333A" if provider != "LOCAL" else PANEL_ALT,
             text_color=GREEN if provider != "LOCAL" else AMBER,
             font=ctk.CTkFont("Consolas", 9, "bold"),
         )
@@ -159,11 +159,11 @@ class JarvisApp(ctk.CTk):
             parent,
             text=text,
             command=command,
-            width=88,
+            width=86,
             height=30,
             corner_radius=4,
             fg_color="transparent",
-            hover_color=PANEL_ALT,
+            hover_color="#07313A",
             border_width=1,
             border_color=LINE,
             text_color=color,
@@ -276,17 +276,55 @@ class JarvisApp(ctk.CTk):
 
     def _build_reactor(self, parent) -> None:
         center = ctk.CTkFrame(parent, fg_color="transparent")
-        center.grid(row=0, column=1, sticky="nsew", padx=5)
+        center.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         center.grid_columnconfigure(0, weight=1)
         center.grid_rowconfigure(0, weight=1)
 
         self.reactor = tk.Canvas(center, bg=VOID, highlightthickness=0)
         self.reactor.grid(row=0, column=0, sticky="nsew")
 
+        telemetry = ctk.CTkFrame(
+            center, width=220, fg_color="#031E25", corner_radius=4,
+            border_width=1, border_color=LINE_SOFT
+        )
+        telemetry.grid(row=0, column=0, sticky="nw", padx=16, pady=16)
+        telemetry.grid_propagate(False)
+        ctk.CTkLabel(
+            telemetry, text="LIVE TELEMETRY", font=ctk.CTkFont("Consolas", 9, "bold"),
+            text_color=AMBER
+        ).pack(anchor="w", padx=12, pady=(10, 4))
+        self.cpu_value, self.cpu_bar = self._metric(telemetry, "CPU", CYAN)
+        self.ram_value, self.ram_bar = self._metric(telemetry, "MEMORY", BLUE)
+        self.disk_value, self.disk_bar = self._metric(telemetry, "STORAGE", AMBER)
+        self.learning_value = ctk.CTkLabel(
+            telemetry, text="0 CORRECTIONS", font=ctk.CTkFont("Consolas", 9, "bold"),
+            text_color=WHITE
+        )
+        self.learning_value.pack(anchor="w", padx=12, pady=(10, 0))
+        self.learning_sub = ctk.CTkLabel(
+            telemetry, text="adaptive memory online", font=ctk.CTkFont("Consolas", 7),
+            text_color=MUTED
+        )
+        self.learning_sub.pack(anchor="w", padx=12, pady=(0, 10))
+
+        quick = ctk.CTkFrame(center, fg_color="transparent")
+        quick.grid(row=0, column=0, sticky="ne", padx=16, pady=16)
+        for label, command in (
+            ("SYSTEM SCAN", "PC status"),
+            ("SCREENSHOT", "screenshot"),
+            ("LEARNING", "learning report"),
+        ):
+            ctk.CTkButton(
+                quick, text=label, command=lambda cmd=command: self._send_quick(cmd),
+                width=108, height=29, corner_radius=2, fg_color="#03252D",
+                hover_color="#07414A", border_width=1, border_color=LINE,
+                text_color=CYAN, font=ctk.CTkFont("Consolas", 8, "bold")
+            ).pack(pady=3)
+
         state = ctk.CTkFrame(center, fg_color="transparent")
-        state.grid(row=0, column=0, sticky="s", pady=(0, 74))
+        state.grid(row=0, column=0, sticky="s", pady=(0, 42))
         self.state_label = ctk.CTkLabel(
-            state, text="●  SYSTEM ONLINE", font=ctk.CTkFont("Consolas", 12, "bold"), text_color=GREEN
+            state, text="●  SYSTEM ONLINE", font=ctk.CTkFont("Consolas", 11, "bold"), text_color=GREEN
         )
         self.state_label.pack()
         self.reactor_subtitle = ctk.CTkLabel(
@@ -298,12 +336,12 @@ class JarvisApp(ctk.CTk):
         self.reactor_subtitle.pack(pady=4)
 
         self.waveform = tk.Canvas(center, bg=VOID, height=54, highlightthickness=0)
-        self.waveform.grid(row=1, column=0, sticky="ew", padx=60)
+        self.waveform.grid(row=1, column=0, sticky="ew", padx=90)
 
     def _build_comms(self, parent) -> None:
-        panel = self._hud_panel(parent, 360)
-        panel.grid(row=0, column=2, sticky="nsew", padx=(12, 0))
-        self._section_title(panel, "COMMUNICATION LOG", "COM.07")
+        panel = self._hud_panel(parent, 420)
+        panel.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        self._section_title(panel, "CONVERSATION", "LINK.07")
 
         self.chat_scroll = ctk.CTkScrollableFrame(
             panel,
@@ -315,14 +353,14 @@ class JarvisApp(ctk.CTk):
         self.chat_scroll.pack(fill="both", expand=True, padx=7)
         self.chat_scroll.grid_columnconfigure(0, weight=1)
 
-        controls = ctk.CTkFrame(panel, fg_color=PANEL_ALT, corner_radius=0, height=108)
+        controls = ctk.CTkFrame(panel, fg_color=PANEL_ALT, corner_radius=0, height=78)
         controls.pack(fill="x", side="bottom", padx=1, pady=1)
         controls.pack_propagate(False)
         self.voice_btn = self._small_control(controls, f"VOICE  {self.voice.speed.upper()}", self._toggle_voice)
-        self.voice_btn.pack(side="left", padx=(12, 4), pady=12)
+        self.voice_btn.pack(side="left", padx=(12, 4), pady=22)
         self.wake_btn = self._small_control(controls, "WAKE  OFF", self._toggle_wake)
-        self.wake_btn.pack(side="left", padx=4, pady=12)
-        self._small_control(controls, "GUIDE", self._show_help).pack(side="left", padx=4, pady=12)
+        self.wake_btn.pack(side="left", padx=4, pady=22)
+        self._small_control(controls, "GUIDE", self._show_help).pack(side="left", padx=4, pady=22)
 
     def _small_control(self, parent, text: str, command):
         return ctk.CTkButton(
@@ -332,8 +370,8 @@ class JarvisApp(ctk.CTk):
             width=96,
             height=32,
             corner_radius=3,
-            fg_color="#091725",
-            hover_color="#0B263B",
+            fg_color="#042831",
+            hover_color="#07505A",
             border_width=1,
             border_color=LINE,
             text_color=CYAN,
@@ -342,13 +380,13 @@ class JarvisApp(ctk.CTk):
 
     def _build_command_bar(self) -> None:
         bar = ctk.CTkFrame(
-            self, height=82, corner_radius=0, fg_color=PANEL, border_width=1, border_color=LINE_SOFT
+            self, height=78, corner_radius=0, fg_color=PANEL, border_width=1, border_color=LINE
         )
         bar.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 18))
         bar.grid_columnconfigure(1, weight=1)
         bar.grid_propagate(False)
         ctk.CTkLabel(
-            bar, text="DIRECTIVE", font=ctk.CTkFont("Consolas", 9, "bold"), text_color=CYAN
+            bar, text="INPUT", font=ctk.CTkFont("Consolas", 9, "bold"), text_color=AMBER
         ).grid(row=0, column=0, padx=(20, 12))
         self.entry = ctk.CTkEntry(
             bar,
@@ -357,7 +395,7 @@ class JarvisApp(ctk.CTk):
             corner_radius=3,
             border_width=1,
             border_color=LINE,
-            fg_color=VOID,
+            fg_color="#001419",
             text_color=WHITE,
             placeholder_text_color=MUTED,
             font=ctk.CTkFont("Segoe UI", 12),
@@ -372,8 +410,8 @@ class JarvisApp(ctk.CTk):
             width=112,
             height=44,
             corner_radius=3,
-            fg_color="#09202B",
-            hover_color="#0D3444",
+            fg_color="#05343C",
+            hover_color="#08606A",
             border_width=1,
             border_color=CYAN_DIM,
             text_color=CYAN,
@@ -387,9 +425,9 @@ class JarvisApp(ctk.CTk):
             width=130,
             height=44,
             corner_radius=3,
-            fg_color=CYAN_DIM,
-            hover_color="#1094AE",
-            text_color=WHITE,
+            fg_color=AMBER,
+            hover_color="#F0DA59",
+            text_color=VOID,
             font=ctk.CTkFont("Consolas", 10, "bold"),
         ).grid(row=0, column=3, padx=(6, 18))
 
@@ -398,7 +436,7 @@ class JarvisApp(ctk.CTk):
         card = ctk.CTkFrame(
             self.chat_scroll,
             corner_radius=3,
-            fg_color="#071B27" if user else PANEL_ALT,
+            fg_color="#06313A" if user else PANEL_ALT,
             border_width=1,
             border_color=CYAN_DIM if user else (RED if error else LINE_SOFT),
         )
@@ -407,12 +445,12 @@ class JarvisApp(ctk.CTk):
             card,
             text=f"{'DANTE' if user else 'JARVIS+'}  //  {datetime.now():%H:%M:%S}",
             font=ctk.CTkFont("Consolas", 8, "bold"),
-            text_color=CYAN if user else (RED if error else VIOLET),
+            text_color=CYAN if user else (RED if error else AMBER),
         ).pack(anchor="w", padx=10, pady=(8, 2))
         ctk.CTkLabel(
             card,
             text=text,
-            wraplength=305,
+            wraplength=355,
             justify="left",
             anchor="w",
             font=ctk.CTkFont("Segoe UI", 10),
@@ -646,60 +684,95 @@ class JarvisApp(ctk.CTk):
         canvas = self.reactor
         canvas.delete("all")
         width, height = max(canvas.winfo_width(), 600), max(canvas.winfo_height(), 600)
-        cx, cy = width / 2, height / 2 - 12
-        base = min(width, height) * 0.34
-        pulse = 5 * math.sin(self.angle * 2.3)
+        cx, cy = width / 2, height / 2 - 8
+        base = max(175, min(width / 2 - 42, height / 2 - 28, min(width, height) * 0.405))
+        pulse = 3 * math.sin(self.angle * 2.2)
 
         for sx, sy, size in self.stars:
             x, y = sx * width, sy * height
-            canvas.create_oval(x, y, x + size, y + size, fill="#0A2A3B", outline="")
+            canvas.create_oval(x, y, x + size, y + size, fill="#0A3840", outline="")
 
-        canvas.create_line(18, cy, width - 18, cy, fill="#071D2B")
-        canvas.create_line(cx, 18, cx, height - 18, fill="#071D2B")
-        for offset in (-base-40, base+40):
-            canvas.create_line(cx-9, cy+offset, cx+9, cy+offset, fill=CYAN_DIM)
-            canvas.create_line(cx+offset, cy-9, cx+offset, cy+9, fill=CYAN_DIM)
-
-        rings = (
-            (base + 42, "#0A3042", 1, self.angle * 80, 285),
-            (base + 18, CYAN_DIM, 2, -self.angle * 95, 210),
-            (base - 12, CYAN, 2, self.angle * 120, 120),
-            (base - 48, VIOLET, 2, -self.angle * 145, 240),
+        canvas.create_oval(
+            cx-base-58, cy-base-58, cx+base+58, cy+base+58,
+            outline="#042B31", width=18
         )
-        for radius, color, line_width, start, extent in rings:
-            canvas.create_oval(cx-radius, cy-radius, cx+radius, cy+radius, outline="#082131", width=1)
+        canvas.create_oval(
+            cx-base-43, cy-base-43, cx+base+43, cy+base+43,
+            outline="#0B5963", width=3
+        )
+
+        for i in range(72):
+            a = self.angle * 0.18 + i * math.tau / 72
+            inner = base + 28
+            outer = base + (43 if i % 6 == 0 else 37)
+            canvas.create_line(
+                cx + math.cos(a) * inner, cy + math.sin(a) * inner,
+                cx + math.cos(a) * outer, cy + math.sin(a) * outer,
+                fill=CYAN_DIM if i % 6 == 0 else "#0A4650",
+                width=2 if i % 6 == 0 else 1
+            )
+
+        for i in range(16):
+            start = i * 22.5 + self.angle * 7
+            canvas.create_arc(
+                cx-base-24, cy-base-24, cx+base+24, cy+base+24,
+                start=start, extent=16 if i % 2 == 0 else 12, style="arc",
+                outline="#147884" if i % 3 else "#1B9AA5", width=14
+            )
+
+        ring_specs = (
+            (base + 4, "#2CA8B2", 5, self.angle * 42, 276),
+            (base - 15, "#0A525C", 13, -self.angle * 31, 248),
+            (base - 35, CYAN, 5, self.angle * 54, 210),
+            (base - 55, "#0C6971", 2, -self.angle * 68, 292),
+        )
+        for radius, color, line_width, start, extent in ring_specs:
             canvas.create_arc(
                 cx-radius, cy-radius, cx+radius, cy+radius,
                 start=start, extent=extent, style="arc", outline=color, width=line_width
             )
 
-        for i in range(36):
-            a = self.angle + i * math.tau / 36
-            inner = base + 3
-            outer = base + (15 if i % 3 == 0 else 9)
-            canvas.create_line(
-                cx + math.cos(a) * inner, cy + math.sin(a) * inner,
-                cx + math.cos(a) * outer, cy + math.sin(a) * outer,
-                fill=CYAN if i % 3 == 0 else "#15536A", width=2 if i % 3 == 0 else 1
+        amber_radius = base + 12
+        canvas.create_arc(
+            cx-amber_radius, cy-amber_radius, cx+amber_radius, cy+amber_radius,
+            start=128, extent=104, style="arc", outline=AMBER, width=5
+        )
+        for i in range(5):
+            canvas.create_arc(
+                cx-base-2, cy-base-2, cx+base+2, cy+base+2,
+                start=76 + i * 11, extent=5, style="arc", outline=AMBER, width=6
             )
 
-        for i in range(3):
-            radius = base - 82 - i * 18 + pulse * (1 if i % 2 == 0 else -1)
-            canvas.create_oval(
-                cx-radius, cy-radius, cx+radius, cy+radius,
-                outline=(CYAN, BLUE, VIOLET)[i], width=2
-            )
-
-        core = max(32, base - 145 + pulse)
-        canvas.create_oval(cx-core-12, cy-core-12, cx+core+12, cy+core+12, fill="#032B39", outline="")
-        canvas.create_oval(cx-core, cy-core, cx+core, cy+core, fill="#08738A", outline=CYAN, width=3)
-        canvas.create_oval(cx-15, cy-15, cx+15, cy+15, fill="#E9FDFF", outline="")
-        canvas.create_text(cx, cy + base + 78, text="J+  ADAPTIVE REACTOR", fill=MUTED, font=("Consolas", 9))
-        canvas.create_text(cx-base-76, cy-base-25, text="032.77", fill="#1B5268", font=("Consolas", 8))
-        canvas.create_text(cx+base+46, cy+base-8, text="CORE 100%", fill="#1B5268", font=("Consolas", 8))
+        inner = base - 72 + pulse
+        canvas.create_oval(
+            cx-inner-11, cy-inner-11, cx+inner+11, cy+inner+11,
+            fill="#042B31", outline="#0A5962", width=2
+        )
+        canvas.create_oval(
+            cx-inner, cy-inner, cx+inner, cy+inner,
+            fill="#001115", outline=CYAN, width=5
+        )
+        canvas.create_arc(
+            cx-inner+16, cy-inner+16, cx+inner-16, cy+inner-16,
+            start=20-self.angle*20, extent=130, style="arc", outline="#164B51", width=2
+        )
+        canvas.create_text(
+            cx, cy-8, text="J.A.R.V.I.S.", fill=WHITE,
+            font=("Segoe UI", max(22, int(base * 0.12)), "bold")
+        )
+        canvas.create_text(
+            cx, cy+29, text="JUST A RATHER VERY INTELLIGENT SYSTEM",
+            fill=MUTED, font=("Consolas", max(7, int(base * 0.032)))
+        )
+        canvas.create_text(
+            cx, cy + base + 70, text="MK IV  //  CIRCULAR ADAPTIVE CORE",
+            fill=AMBER, font=("Consolas", 8, "bold")
+        )
+        canvas.create_text(cx-base-70, cy-base-6, text="SYS 032.77", fill="#276C73", font=("Consolas", 7))
+        canvas.create_text(cx+base+48, cy+base-4, text="CORE 100%", fill="#276C73", font=("Consolas", 7))
 
         self._draw_waveform()
-        self.angle += 0.025 if not self.listening else 0.11
+        self.angle += 0.018 if not self.listening else 0.085
         self.after(30, self._animate_hud)
 
     def _draw_waveform(self) -> None:
