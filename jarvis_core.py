@@ -1,0 +1,865 @@
+from __future__ import annotations
+
+import ast
+import base64
+import difflib
+import json
+import math
+import operator
+import os
+import platform
+import re
+import sqlite3
+import subprocess
+import tempfile
+import threading
+import time
+import webbrowser
+import wave
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Callable, Optional
+from urllib.parse import quote_plus
+
+
+APP_NAME = "JARVIS+"
+
+
+def _resolve_data_dir() -> Path:
+    preferred = Path(os.getenv("JARVIS_DATA_DIR") or os.getenv("APPDATA") or Path.home()) / "JarvisPlus"
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        return preferred
+    except OSError:
+        fallback = Path.cwd() / ".jarvis_data"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
+DATA_DIR = _resolve_data_dir()
+
+
+@dataclass
+class AssistantReply:
+    text: str
+    kind: str = "answer"
+    requires_confirmation: Optional[str] = None
+    voice_language: Optional[str] = None
+    voice_speed: Optional[str] = None
+
+
+class MemoryStore:
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or DATA_DIR / "jarvis.db"
+        self._lock = threading.Lock()
+        with self._connect() as db:
+            db.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY, role TEXT NOT NULL, content TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS notes (
+                    id INTEGER PRIMARY KEY, content TEXT NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS reminders (
+                    id INTEGER PRIMARY KEY, content TEXT NOT NULL, due_at TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS learned_commands (
+                    phrase TEXT PRIMARY KEY, canonical_command TEXT NOT NULL,
+                    confidence REAL NOT NULL DEFAULT 1.0, uses INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS command_events (
+                    id INTEGER PRIMARY KEY, command TEXT NOT NULL, outcome TEXT NOT NULL,
+                    success INTEGER NOT NULL, created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY, value TEXT NOT NULL
+                );
+                """
+            )
+
+    def _connect(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.path, timeout=10)
+
+    def add_message(self, role: str, content: str) -> None:
+        with self._lock, self._connect() as db:
+            db.execute(
+                "INSERT INTO messages(role, content, created_at) VALUES (?, ?, ?)",
+                (role, content, datetime.now().isoformat(timespec="seconds")),
+            )
+
+    def recent_messages(self, limit: int = 10) -> list[dict[str, str]]:
+        with self._lock, self._connect() as db:
+            rows = db.execute(
+                "SELECT role, content FROM messages ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [{"role": r, "content": c} for r, c in reversed(rows)]
+
+    def add_note(self, content: str) -> None:
+        with self._lock, self._connect() as db:
+            db.execute(
+                "INSERT INTO notes(content, created_at) VALUES (?, ?)",
+                (content, datetime.now().isoformat(timespec="seconds")),
+            )
+
+    def list_notes(self, limit: int = 8) -> list[str]:
+        with self._lock, self._connect() as db:
+            return [
+                row[0]
+                for row in db.execute(
+                    "SELECT content FROM notes ORDER BY id DESC LIMIT ?", (limit,)
+                ).fetchall()
+            ]
+
+    def add_reminder(self, content: str, due_at: datetime) -> None:
+        with self._lock, self._connect() as db:
+            db.execute(
+                "INSERT INTO reminders(content, due_at) VALUES (?, ?)",
+                (content, due_at.isoformat(timespec="seconds")),
+            )
+
+    def pop_due_reminders(self) -> list[str]:
+        now = datetime.now().isoformat(timespec="seconds")
+        with self._lock, self._connect() as db:
+            rows = db.execute(
+                "SELECT id, content FROM reminders WHERE completed=0 AND due_at<=?", (now,)
+            ).fetchall()
+            db.executemany("UPDATE reminders SET completed=1 WHERE id=?", [(r[0],) for r in rows])
+        return [r[1] for r in rows]
+
+    @staticmethod
+    def normalize_phrase(text: str) -> str:
+        return re.sub(r"\s+", " ", text.lower().strip(" .!?¿¡,;:"))
+
+    def learn_command(self, phrase: str, canonical_command: str) -> None:
+        phrase = self.normalize_phrase(phrase)
+        canonical_command = canonical_command.strip()
+        if not phrase or not canonical_command:
+            raise ValueError("Both the phrase and correction are required")
+        now = datetime.now().isoformat(timespec="seconds")
+        with self._lock, self._connect() as db:
+            db.execute(
+                """
+                INSERT INTO learned_commands(
+                    phrase, canonical_command, confidence, uses, created_at, updated_at
+                ) VALUES (?, ?, 1.0, 0, ?, ?)
+                ON CONFLICT(phrase) DO UPDATE SET
+                    canonical_command=excluded.canonical_command,
+                    confidence=1.0,
+                    updated_at=excluded.updated_at
+                """,
+                (phrase, canonical_command, now, now),
+            )
+
+    def resolve_learned(self, phrase: str) -> tuple[str, str] | None:
+        normalized = self.normalize_phrase(phrase)
+        with self._lock, self._connect() as db:
+            rows = db.execute(
+                "SELECT phrase, canonical_command FROM learned_commands"
+            ).fetchall()
+            best: tuple[float, str, str] | None = None
+            for learned_phrase, command in rows:
+                score = 1.0 if learned_phrase == normalized else difflib.SequenceMatcher(
+                    None, learned_phrase, normalized
+                ).ratio()
+                threshold = 1.0 if min(len(learned_phrase), len(normalized)) < 6 else 0.86
+                if score >= threshold and (best is None or score > best[0]):
+                    best = (score, learned_phrase, command)
+            if best:
+                db.execute(
+                    "UPDATE learned_commands SET uses=uses+1, confidence=? WHERE phrase=?",
+                    (best[0], best[1]),
+                )
+                return best[2], best[1]
+        return None
+
+    def forget_command(self, phrase: str) -> bool:
+        with self._lock, self._connect() as db:
+            cursor = db.execute(
+                "DELETE FROM learned_commands WHERE phrase=?", (self.normalize_phrase(phrase),)
+            )
+            return cursor.rowcount > 0
+
+    def record_event(self, command: str, outcome: str, success: bool) -> None:
+        with self._lock, self._connect() as db:
+            db.execute(
+                "INSERT INTO command_events(command, outcome, success, created_at) VALUES (?, ?, ?, ?)",
+                (command, outcome[:500], int(success), datetime.now().isoformat(timespec="seconds")),
+            )
+
+    def learning_stats(self) -> tuple[int, int, int]:
+        with self._lock, self._connect() as db:
+            learned, uses = db.execute(
+                "SELECT COUNT(*), COALESCE(SUM(uses), 0) FROM learned_commands"
+            ).fetchone()
+            failures = db.execute(
+                "SELECT COUNT(*) FROM command_events WHERE success=0"
+            ).fetchone()[0]
+        return int(learned), int(uses), int(failures)
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self._lock, self._connect() as db:
+            db.execute(
+                "INSERT INTO settings(key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, value),
+            )
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        with self._lock, self._connect() as db:
+            row = db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return row[0] if row else default
+
+
+class SafeCalculator:
+    OPS = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+    NAMES = {"pi": math.pi, "e": math.e}
+
+    @classmethod
+    def evaluate(cls, expression: str) -> float | int:
+        tree = ast.parse(expression, mode="eval")
+
+        def visit(node: ast.AST) -> float | int:
+            if isinstance(node, ast.Expression):
+                return visit(node.body)
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return node.value
+            if isinstance(node, ast.Name) and node.id in cls.NAMES:
+                return cls.NAMES[node.id]
+            if isinstance(node, ast.UnaryOp) and type(node.op) in cls.OPS:
+                return cls.OPS[type(node.op)](visit(node.operand))
+            if isinstance(node, ast.BinOp) and type(node.op) in cls.OPS:
+                left, right = visit(node.left), visit(node.right)
+                if isinstance(node.op, ast.Pow) and abs(right) > 100:
+                    raise ValueError("Exponent too large")
+                return cls.OPS[type(node.op)](left, right)
+            raise ValueError("Unsupported expression")
+
+        return visit(tree)
+
+
+class SystemActions:
+    APP_COMMANDS = {
+        "notepad": ["notepad.exe"],
+        "bloc de notas": ["notepad.exe"],
+        "calculator": ["calc.exe"],
+        "calculadora": ["calc.exe"],
+        "explorer": ["explorer.exe"],
+        "files": ["explorer.exe"],
+        "archivos": ["explorer.exe"],
+        "settings": ["cmd", "/c", "start", "ms-settings:"],
+        "configuración": ["cmd", "/c", "start", "ms-settings:"],
+        "task manager": ["taskmgr.exe"],
+        "administrador de tareas": ["taskmgr.exe"],
+        "terminal": ["cmd.exe"],
+        "powershell": ["powershell.exe"],
+        "paint": ["mspaint.exe"],
+        "steam": ["cmd", "/c", "start", "steam://open/main"],
+        "spotify": ["cmd", "/c", "start", "spotify:"],
+        "discord": ["cmd", "/c", "start", "discord:"],
+        "chrome": ["cmd", "/c", "start", "chrome"],
+    }
+
+    @classmethod
+    def open_app(cls, name: str) -> tuple[bool, str]:
+        key = name.strip().lower()
+        key = re.sub(r"^(?:the|my|el|la|los|las|mi)\s+", "", key)
+        command = cls.APP_COMMANDS.get(key)
+        if not command:
+            return False, f"I don't have a safe launcher for “{name}” yet."
+        try:
+            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True, f"Opening {name}."
+        except Exception as exc:
+            return False, f"I couldn't open {name}: {exc}"
+
+    @staticmethod
+    def system_status() -> str:
+        try:
+            import psutil
+
+            cpu = psutil.cpu_percent(interval=0.3)
+            ram = psutil.virtual_memory()
+            disk = psutil.disk_usage(str(Path.home().anchor or "/"))
+            return (
+                f"CPU {cpu:.0f}% · RAM {ram.percent:.0f}% · "
+                f"Disk {disk.percent:.0f}% · {platform.system()} {platform.release()}"
+            )
+        except ImportError:
+            return f"{platform.system()} {platform.release()} · {platform.machine()}"
+
+    @staticmethod
+    def screenshot() -> tuple[bool, str]:
+        try:
+            from PIL import ImageGrab
+
+            folder = Path.home() / "Pictures" / "JarvisPlus"
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"screenshot-{datetime.now():%Y%m%d-%H%M%S}.png"
+            ImageGrab.grab().save(path)
+            return True, f"Screenshot saved to {path}."
+        except Exception as exc:
+            return False, f"I couldn't take the screenshot: {exc}"
+
+    @staticmethod
+    def power_action(action: str) -> tuple[bool, str]:
+        commands = {
+            "shutdown": ["shutdown", "/s", "/t", "15"],
+            "restart": ["shutdown", "/r", "/t", "15"],
+            "lock": ["rundll32.exe", "user32.dll,LockWorkStation"],
+        }
+        if action not in commands:
+            return False, "Unknown power action."
+        try:
+            subprocess.Popen(commands[action])
+            return True, f"Confirmed. Starting {action}."
+        except Exception as exc:
+            return False, f"Action failed: {exc}"
+
+
+class VoiceEngine:
+    SPEED_RATES = {"fast": 198, "normal": 178, "slow": 154}
+
+    def __init__(self, language: str = "auto", speed: str = "fast") -> None:
+        self.enabled = True
+        self.language = language
+        self.speed = speed if speed in self.SPEED_RATES else "fast"
+        self._engine = None
+        try:
+            import pyttsx3
+
+            self._engine = pyttsx3.init()
+            self._engine.setProperty("rate", self.SPEED_RATES[self.speed])
+            self._engine.setProperty("volume", 1.0)
+            self._choose_local_voice()
+        except Exception:
+            self._engine = None
+
+    @property
+    def available(self) -> bool:
+        return self._engine is not None or self.cloud_available
+
+    @property
+    def cloud_available(self) -> bool:
+        return self.cloud_provider != "local" and os.getenv("JARVIS_CLOUD_VOICE", "1") != "0"
+
+    @property
+    def cloud_provider(self) -> str:
+        if os.getenv("OPENAI_API_KEY"):
+            return "openai"
+        if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+            return "gemini"
+        return "local"
+
+    def set_language(self, language: str) -> None:
+        self.language = language
+        self._choose_local_voice()
+
+    def set_speed(self, speed: str) -> None:
+        if speed not in self.SPEED_RATES:
+            return
+        self.speed = speed
+        if self._engine:
+            try:
+                self._engine.setProperty("rate", self.SPEED_RATES[speed])
+            except Exception:
+                pass
+
+    def _choose_local_voice(self) -> None:
+        if not self._engine:
+            return
+        try:
+            voices = self._engine.getProperty("voices")
+            wanted = (
+                ("pablo", "alvaro", "jorge", "raul", "sabina", "helena")
+                if self.language.startswith("es")
+                else ("george", "ryan", "mark", "david", "daniel")
+            )
+            identities = [
+                (voice, f"{getattr(voice, 'name', '')} {getattr(voice, 'id', '')}".lower())
+                for voice in voices
+            ]
+            for preferred in wanted:
+                match = next((voice for voice, identity in identities if preferred in identity), None)
+                if match:
+                    self._engine.setProperty("voice", match.id)
+                    break
+        except Exception:
+            pass
+
+    def speak(self, text: str) -> None:
+        if not self.enabled:
+            return
+        speech_limits = {"fast": 320, "normal": 460, "slow": 600}
+        clean = re.sub(r"[*_`#]", "", text)[:speech_limits[self.speed]]
+        if self.cloud_available:
+            try:
+                self._speak_cloud(clean)
+                return
+            except Exception:
+                pass
+        if not self._engine:
+            return
+        try:
+            self._engine.say(clean)
+            self._engine.runAndWait()
+        except Exception:
+            pass
+
+    def _speak_cloud(self, text: str) -> None:
+        if self.cloud_provider == "gemini":
+            self._speak_gemini(text)
+            return
+
+        import winsound
+        from openai import OpenAI
+
+        language_style = (
+            "Speak fluent Chilean Spanish with natural pacing and clear pronunciation."
+            if self.language.startswith("es")
+            else "Speak fluent natural English with clear pronunciation."
+        )
+        pace_style = {
+            "fast": "Begin immediately. Speak briskly and naturally, without dramatic pauses.",
+            "normal": "Speak at a natural conversational pace with brief pauses.",
+            "slow": "Speak slowly and clearly.",
+        }[self.speed]
+        file_descriptor, temp_name = tempfile.mkstemp(prefix="jarvis-voice-", suffix=".wav")
+        os.close(file_descriptor)
+        try:
+            client = OpenAI()
+            with client.audio.speech.with_streaming_response.create(
+                model="gpt-4o-mini-tts",
+                voice=os.getenv("JARVIS_VOICE", "cedar"),
+                input=text,
+                instructions=(
+                    f"{language_style} {pace_style} Use a low register, crisp British diction, "
+                    "and controlled warmth. Sound like an original advanced personal "
+                    "assistant. Do not imitate any real actor or copyrighted character."
+                ),
+                response_format="wav",
+            ) as response:
+                response.stream_to_file(temp_name)
+            winsound.PlaySound(temp_name, winsound.SND_FILENAME)
+        finally:
+            Path(temp_name).unlink(missing_ok=True)
+
+    def _speak_gemini(self, text: str) -> None:
+        import winsound
+        from google import genai
+
+        file_descriptor, temp_name = tempfile.mkstemp(prefix="jarvis-gemini-", suffix=".wav")
+        os.close(file_descriptor)
+        try:
+            client = genai.Client(
+                api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            )
+            language_style = (
+                "Speak fluent Chilean Spanish with a refined British-influenced formality"
+                if self.language.startswith("es")
+                else "Speak polished British English, deep, calm, formal, and subtly warm"
+            )
+            pace_style = {
+                "fast": "Begin immediately and speak briskly with no dramatic pauses",
+                "normal": "Speak at a natural conversational pace",
+                "slow": "Speak slowly and clearly",
+            }[self.speed]
+            interaction = client.interactions.create(
+                model=os.getenv("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview"),
+                input=f"{language_style}. {pace_style}, like a calm intelligent personal assistant: {text}",
+                response_format={"type": "audio"},
+                generation_config={
+                    "speech_config": [{"voice": os.getenv("GEMINI_VOICE", "Gacrux")}]
+                },
+            )
+            audio_data = interaction.output_audio.data
+            pcm = base64.b64decode(audio_data) if isinstance(audio_data, str) else audio_data
+            with wave.open(temp_name, "wb") as output:
+                output.setnchannels(1)
+                output.setsampwidth(2)
+                output.setframerate(24_000)
+                output.writeframes(pcm)
+            winsound.PlaySound(temp_name, winsound.SND_FILENAME)
+        finally:
+            Path(temp_name).unlink(missing_ok=True)
+
+    @staticmethod
+    def listen_once(
+        timeout: int = 5, phrase_time_limit: int = 9, language: str = "auto"
+    ) -> tuple[bool, str]:
+        try:
+            import speech_recognition as sr
+
+            recognizer = sr.Recognizer()
+            try:
+                with sr.Microphone() as source:
+                    recognizer.adjust_for_ambient_noise(source, duration=0.45)
+                    audio = recognizer.listen(source, timeout=timeout, phrase_time_limit=phrase_time_limit)
+            except (AttributeError, OSError):
+                import sounddevice as sd
+
+                sample_rate = 16_000
+                recording = sd.rec(
+                    int(phrase_time_limit * sample_rate),
+                    samplerate=sample_rate,
+                    channels=1,
+                    dtype="int16",
+                )
+                sd.wait()
+                audio = sr.AudioData(recording.tobytes(), sample_rate, 2)
+            languages = [language] if language != "auto" else ["en-US", "es-CL"]
+            for recognition_language in languages:
+                try:
+                    return True, recognizer.recognize_google(audio, language=recognition_language)
+                except sr.UnknownValueError:
+                    continue
+            return False, "I couldn't understand that."
+        except Exception as exc:
+            return False, f"Microphone unavailable: {exc}"
+
+
+class AIClient:
+    def __init__(self) -> None:
+        self.model = os.getenv("OPENAI_MODEL", "gpt-5.6")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+
+    @property
+    def provider(self) -> str:
+        if os.getenv("OPENAI_API_KEY"):
+            return "openai"
+        if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+            return "gemini"
+        return "local"
+
+    @property
+    def available(self) -> bool:
+        return self.provider != "local"
+
+    def answer(self, prompt: str, history: list[dict[str, str]]) -> str:
+        if not self.available:
+            raise RuntimeError("No AI provider key is configured")
+        if self.provider == "gemini":
+            return self._answer_gemini(history)
+
+        from openai import OpenAI
+
+        client = OpenAI()
+        conversation = history[-8:]
+        response = client.responses.create(
+            model=self.model,
+            instructions=(
+                "You are JARVIS+, a precise, proactive Windows desktop assistant. "
+                "Talk naturally and fluently, like a trusted long-term partner—not a command bot. "
+                "Be concise for simple requests and detailed when useful. Remember context from the "
+                "conversation provided. Never claim that you executed a computer action; the local "
+                "command system handles actions separately. Reply in the same language as the user. "
+                "The user's name is Dante."
+            ),
+            input=conversation,
+            max_output_tokens=700,
+        )
+        return response.output_text.strip()
+
+    def _answer_gemini(self, history: list[dict[str, str]]) -> str:
+        from google import genai
+
+        client = genai.Client(
+            api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        )
+        transcript = "\n".join(
+            f"{'Dante' if item['role'] == 'user' else 'JARVIS+'}: {item['content']}"
+            for item in history[-10:]
+        )
+        interaction = client.interactions.create(
+            model=self.gemini_model,
+            system_instruction=(
+                "You are JARVIS+, Dante's precise, proactive Windows desktop assistant. "
+                "Talk naturally and fluently like a trusted long-term partner. Be concise for "
+                "simple requests and detailed when useful. Never claim that you executed a PC "
+                "action; protected local code handles actions. Reply in Dante's current language."
+            ),
+            input=transcript,
+        )
+        return interaction.output_text.strip()
+
+
+def configure_ai_key(provider: str, api_key: str) -> None:
+    """Activate an API key now and persist it for future Windows sessions."""
+    provider = provider.lower().strip()
+    variable = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}.get(provider)
+    key = api_key.strip()
+    if not variable or len(key) < 16 or any(character.isspace() for character in key):
+        raise ValueError("That API key does not look valid")
+    os.environ[variable] = key
+    if os.name == "nt":
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            "Environment",
+            0,
+            winreg.KEY_SET_VALUE,
+        ) as registry:
+            winreg.SetValueEx(registry, variable, 0, winreg.REG_SZ, key)
+
+
+class JarvisBrain:
+    def __init__(self, memory: MemoryStore | None = None) -> None:
+        self.memory = memory or MemoryStore()
+        self.ai = AIClient()
+        self.last_command: str | None = None
+
+    def handle(self, raw: str) -> AssistantReply:
+        text = raw.strip()
+        low = text.lower().strip(" .!?")
+        self.memory.add_message("user", text)
+
+        teaching_reply = self._handle_learning_instruction(text, low)
+        learned = None if teaching_reply else self.memory.resolve_learned(text)
+        effective_text = learned[0] if learned else text
+        effective_low = effective_text.lower().strip(" .!?")
+        reply = teaching_reply or self._local_command(effective_text, effective_low)
+        if reply is None:
+            if self.ai.available:
+                try:
+                    reply = AssistantReply(self.ai.answer(text, self.memory.recent_messages()))
+                except Exception as exc:
+                    reply = AssistantReply(f"The AI connection failed, but local commands still work: {exc}", "error")
+            else:
+                reply = AssistantReply(
+                    "My conversational AI isn't connected yet. Press AI SETUP and add a Google "
+                    "AI Studio key for fluent chat. Local commands still work, and you can teach "
+                    "a command with: teach launch numbers => open calculator",
+                    "unknown",
+                )
+
+        self.memory.add_message("assistant", reply.text)
+        success = reply.kind not in {"error", "unknown"}
+        self.memory.record_event(text, reply.text, success)
+        if learned and success:
+            reply.text = f"[Learned: “{learned[1]}” → “{learned[0]}”]\n{reply.text}"
+        if not teaching_reply:
+            self.last_command = text
+        return reply
+
+    def _handle_learning_instruction(self, original: str, low: str) -> AssistantReply | None:
+        direct = re.match(r"^(?:teach|learn|aprende)\s+(.+?)\s*(?:=>|=|means|significa)\s*(.+)$", original, re.I)
+        if direct:
+            phrase, correction = direct.group(1).strip(), direct.group(2).strip()
+            self.memory.learn_command(phrase, correction)
+            return AssistantReply(
+                f"Learned permanently: “{phrase}” now means “{correction}”. It still passes through my safety system.",
+                "learning",
+            )
+
+        correction = re.match(
+            r"^(?:that was wrong|wrong|incorrect|eso estuvo mal|incorrecto)\s*[,;:]?\s*"
+            r"(?:use|correct command is|usa|el comando correcto es)\s+(.+)$",
+            original,
+            re.I,
+        )
+        if correction:
+            if not self.last_command:
+                return AssistantReply("I don't have a previous command to correct yet.", "error")
+            canonical = correction.group(1).strip()
+            self.memory.learn_command(self.last_command, canonical)
+            return AssistantReply(
+                f"Correction stored. Next time “{self.last_command}” will run as “{canonical}”.",
+                "learning",
+            )
+
+        forget = re.match(r"^(?:forget|olvida)\s+(.+)$", original, re.I)
+        if forget:
+            phrase = forget.group(1).strip()
+            removed = self.memory.forget_command(phrase)
+            return AssistantReply(
+                f"Forgot the learned phrase “{phrase}”." if removed else f"I had not learned “{phrase}”.",
+                "learning",
+            )
+
+        if low in {"learning report", "what did you learn", "show learning", "reporte de aprendizaje", "qué aprendiste"}:
+            learned, uses, failures = self.memory.learning_stats()
+            return AssistantReply(
+                f"Learning report: {learned} corrections stored, {uses} successful learned recalls, "
+                f"and {failures} failed attempts recorded for improvement.",
+                "learning",
+            )
+        return None
+
+    def _local_command(self, original: str, low: str) -> AssistantReply | None:
+        if low in {"hello", "hi", "hey jarvis", "hola", "hola jarvis"}:
+            return AssistantReply("Systems ready. Good to see you, Dante.")
+
+        if low in {
+            "help", "commands", "ayuda", "comandos", "what can you do",
+            "what you can do", "what do you do", "qué puedes hacer", "que puedes hacer",
+        }:
+            return AssistantReply(
+                "I can open safe apps, search the web, calculate, save notes, set reminders, "
+                "take screenshots, report PC status, tell time/date, lock, restart, or shut down. "
+                "Connect Gemini from AI SETUP for fluent open-ended conversation."
+            )
+
+        if low in {"who are you", "what are you", "what is your name", "what's your name", "quién eres", "quien eres"}:
+            return AssistantReply(
+                "I'm JARVIS+, your private Windows assistant. I can control allowlisted PC actions, "
+                "remember corrections, and talk naturally when an AI provider is connected."
+            )
+
+        if low in {"how are you", "how are you doing", "cómo estás", "como estas"}:
+            return AssistantReply("All systems are stable, Dante. I'm ready when you are.")
+
+        if low in {"thanks", "thank you", "thank you jarvis", "gracias", "gracias jarvis"}:
+            return AssistantReply("Always a pleasure, Dante.")
+
+        if low in {"can you hear me", "do you hear me", "me escuchas", "puedes escucharme"}:
+            return AssistantReply(
+                "I can hear microphone commands when VOICE is ON and you press LISTEN, or when WAKE is ON and you begin with Jarvis."
+            )
+
+        if low in {"voice test", "test your voice", "prueba tu voz", "prueba de voz"}:
+            return AssistantReply(
+                "Voice synthesis online. Good evening, Dante. All systems are ready and awaiting your directive."
+            )
+
+        speed_commands = {
+            "voice faster": "fast", "speak faster": "fast", "fast voice": "fast",
+            "habla más rápido": "fast", "habla mas rapido": "fast", "voz rápida": "fast",
+            "voice normal": "normal", "normal voice": "normal", "voz normal": "normal",
+            "voice slower": "slow", "speak slower": "slow", "slow voice": "slow",
+            "habla más lento": "slow", "habla mas lento": "slow", "voz lenta": "slow",
+        }
+        if low in speed_commands:
+            speed = speed_commands[low]
+            self.memory.set_setting("voice_speed", speed)
+            label = {"fast": "fast", "normal": "normal", "slow": "slow"}[speed]
+            return AssistantReply(f"Voice speed changed to {label}.", "setting", voice_speed=speed)
+
+        if low in {"speak spanish", "speak in spanish", "habla español", "habla en español"}:
+            self.memory.set_setting("voice_language", "es-CL")
+            return AssistantReply(
+                "Perfecto, Dante. Desde ahora te escucharé y hablaré en español.",
+                "setting",
+                voice_language="es-CL",
+            )
+
+        if low in {"speak english", "speak in english", "habla inglés", "habla en inglés"}:
+            self.memory.set_setting("voice_language", "en-US")
+            return AssistantReply(
+                "Got it, Dante. I'll listen and speak in English from now on.",
+                "setting",
+                voice_language="en-US",
+            )
+
+        if low in {"bilingual mode", "automatic language", "modo bilingüe", "idioma automático"}:
+            self.memory.set_setting("voice_language", "auto")
+            return AssistantReply(
+                "Bilingual mode activated. I'll detect English or Spanish.",
+                "setting",
+                voice_language="auto",
+            )
+
+        if re.fullmatch(r"(what('s| is) the time|time|qué hora es|hora)", low):
+            return AssistantReply(f"It is {datetime.now():%H:%M}.")
+
+        if re.fullmatch(r"(what('s| is) the date|date|fecha|qué día es)", low):
+            return AssistantReply(datetime.now().strftime("Today is %A, %B %d, %Y."))
+
+        if low in {"pc status", "system status", "status", "estado del pc", "estado"}:
+            return AssistantReply(SystemActions.system_status(), "status")
+
+        match = re.search(r"(?:^|\b)(?:open|abre|abrir)\s+(.+)$", low)
+        if match:
+            ok, message = SystemActions.open_app(match.group(1))
+            return AssistantReply(message, "action" if ok else "error")
+
+        match = re.match(r"^(?:search(?: for)?|busca|buscar)\s+(.+)$", original, re.I)
+        if match:
+            query = match.group(1).strip()
+            webbrowser.open(f"https://www.google.com/search?q={quote_plus(query)}")
+            return AssistantReply(f"Searching for {query}.", "action")
+
+        match = re.match(r"^(?:calculate|calcula|cuánto es|cuanto es)\s+(.+)$", low)
+        if match:
+            try:
+                value = SafeCalculator.evaluate(match.group(1).replace("^", "**"))
+                return AssistantReply(f"The result is {value}.")
+            except Exception:
+                return AssistantReply("I couldn't safely calculate that expression.", "error")
+
+        match = re.match(r"^(?:note|remember|anota|recuerda)\s+(.+)$", original, re.I)
+        if match:
+            self.memory.add_note(match.group(1).strip())
+            return AssistantReply("Saved to your private local notes.", "action")
+
+        if low in {"notes", "my notes", "notas", "mis notas"}:
+            notes = self.memory.list_notes()
+            return AssistantReply("Your latest notes:\n• " + "\n• ".join(notes) if notes else "You have no notes yet.")
+
+        match = re.search(
+            r"(?:remind me|recuérdame|recuerdame)\s+(?:in|en)\s+(\d+)\s*"
+            r"(seconds?|minutes?|hours?|segundos?|minutos?|horas?)\s+(?:to|de|que)?\s*(.+)$",
+            original,
+            re.I,
+        )
+        task_first = False
+        if not match:
+            match = re.search(
+                r"(?:remind me|recuérdame|recuerdame)\s+(?:to|de|que)?\s*(.+?)\s+"
+                r"(?:in|en)\s+(\d+)\s*(seconds?|minutes?|hours?|segundos?|minutos?|horas?)\b",
+                original,
+                re.I,
+            )
+            task_first = bool(match)
+        if match:
+            if task_first:
+                task, amount, unit = match.group(1).strip(), int(match.group(2)), match.group(3).lower()
+            else:
+                amount, unit, task = int(match.group(1)), match.group(2).lower(), match.group(3).strip()
+            seconds = amount
+            if unit.startswith(("minute", "minuto")):
+                seconds *= 60
+            elif unit.startswith(("hour", "hora")):
+                seconds *= 3600
+            due = datetime.now() + timedelta(seconds=seconds)
+            self.memory.add_reminder(task, due)
+            return AssistantReply(f"Reminder set for {due:%H:%M}: {task}", "action")
+
+        if low in {"screenshot", "take a screenshot", "captura", "captura de pantalla"}:
+            ok, message = SystemActions.screenshot()
+            return AssistantReply(message, "action" if ok else "error")
+
+        power_aliases = {
+            "shutdown": "shutdown", "turn off pc": "shutdown", "apaga el pc": "shutdown",
+            "restart": "restart", "restart pc": "restart", "reinicia el pc": "restart",
+            "lock pc": "lock", "lock": "lock", "bloquea el pc": "lock",
+        }
+        if low in power_aliases:
+            action = power_aliases[low]
+            return AssistantReply(
+                f"This will {action} the computer. Confirmation is required.",
+                "confirmation",
+                action,
+            )
+
+        return None
+
+
+def watch_reminders(memory: MemoryStore, callback: Callable[[str], None], stop: threading.Event) -> None:
+    while not stop.wait(2):
+        for reminder in memory.pop_due_reminders():
+            callback(reminder)
