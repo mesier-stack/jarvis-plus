@@ -20,8 +20,8 @@ if not exist ".venv\Scripts\python.exe" (
   py -m venv .venv
   .venv\Scripts\python.exe -m ensurepip --upgrade
 )
-if not exist ".venv\.jarvis-v3.5-ready" (
-  echo [JARVIS+] Installing version 3.5 responsive voice update...
+if not exist ".venv\.jarvis-v3.6-ready" (
+  echo [JARVIS+] Installing version 3.6 voice reliability update...
   .venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
   .venv\Scripts\python.exe -m pip install -r requirements.txt
   if errorlevel 1 (
@@ -30,7 +30,7 @@ if not exist ".venv\.jarvis-v3.5-ready" (
     pause
     exit /b 1
   )
-  echo ready>".venv\.jarvis-v3.5-ready"
+  echo ready>".venv\.jarvis-v3.6-ready"
 )
 .venv\Scripts\python.exe main.py
 if errorlevel 1 (

@@ -514,6 +514,7 @@ class JarvisApp(ctk.CTk):
                 elif kind == "ai_error":
                     self._assistant_message(f"Gemini connection failed: {payload}", True, speak=False)
                 elif kind == "voice_ready":
+                    self.voice.stop()
                     self.voice = VoiceEngine(self.voice.language, self.voice.speed)
                     self._assistant_message(
                         "ElevenLabs voice connected. Low-latency cinematic speech is online."

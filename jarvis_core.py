@@ -455,20 +455,24 @@ class VoiceEngine:
                 self._speak_elevenlabs(text, generation)
                 return
             except Exception:
+                if generation is not None and not self._is_current_speech(generation):
+                    return
                 if os.getenv("OPENAI_API_KEY"):
-                    self._speak_openai(text)
+                    self._speak_openai(text, generation)
                     return
                 if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-                    self._speak_gemini(text)
+                    self._speak_gemini(text, generation)
                     return
                 raise
         if self.cloud_provider == "gemini":
-            self._speak_gemini(text)
+            self._speak_gemini(text, generation)
             return
 
-        self._speak_openai(text)
+        self._speak_openai(text, generation)
 
-    def _speak_openai(self, text: str) -> None:
+    def _speak_openai(self, text: str, generation: int | None = None) -> None:
+        if generation is not None and not self._is_current_speech(generation):
+            return
 
         import winsound
         from openai import OpenAI
@@ -499,7 +503,8 @@ class VoiceEngine:
                 response_format="wav",
             ) as response:
                 response.stream_to_file(temp_name)
-            winsound.PlaySound(temp_name, winsound.SND_FILENAME)
+            if generation is None or self._is_current_speech(generation):
+                winsound.PlaySound(temp_name, winsound.SND_FILENAME)
         finally:
             Path(temp_name).unlink(missing_ok=True)
 
@@ -552,7 +557,9 @@ class VoiceEngine:
                     output.write(audio[:aligned])
                 pending = audio[aligned:]
 
-    def _speak_gemini(self, text: str) -> None:
+    def _speak_gemini(self, text: str, generation: int | None = None) -> None:
+        if generation is not None and not self._is_current_speech(generation):
+            return
         import winsound
         from google import genai
 
@@ -587,7 +594,8 @@ class VoiceEngine:
                 output.setsampwidth(2)
                 output.setframerate(24_000)
                 output.writeframes(pcm)
-            winsound.PlaySound(temp_name, winsound.SND_FILENAME)
+            if generation is None or self._is_current_speech(generation):
+                winsound.PlaySound(temp_name, winsound.SND_FILENAME)
         finally:
             Path(temp_name).unlink(missing_ok=True)
 
@@ -733,12 +741,15 @@ def configure_voice_id(voice_id: str) -> None:
 def verify_elevenlabs_key(api_key: str) -> None:
     """Validate an ElevenLabs key without spending speech credits."""
     request = Request(
-        "https://api.elevenlabs.io/v1/user",
+        "https://api.elevenlabs.io/v1/models",
         headers={"xi-api-key": api_key, "Accept": "application/json"},
     )
     with urlopen(request, timeout=12) as response:
         if response.status != 200:
             raise RuntimeError(f"ElevenLabs returned status {response.status}")
+        models = json.loads(response.read().decode("utf-8"))
+    if not any(model.get("can_do_text_to_speech") for model in models):
+        raise RuntimeError("This ElevenLabs key cannot access a text-to-speech model")
 
 
 class JarvisBrain:

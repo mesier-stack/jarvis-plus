@@ -4,7 +4,7 @@ A native Windows learning assistant with a futuristic desktop HUD, local memory,
 voice input/output, safe PC controls, reminders, notes, system telemetry, a safe
 learning engine, and an optional OpenAI-powered conversational brain and natural voice.
 
-Version 3.5 uses a cinematic fullscreen reactor HUD. Press `Escape` to leave fullscreen
+Version 3.6 uses a cinematic fullscreen reactor HUD. Press `Escape` to leave fullscreen
 or `F11` to toggle it. The interface includes animated targeting rings, a voice
 waveform, system telemetry, learning status, quick directives, and a compact comms log.
 
@@ -112,6 +112,11 @@ back to Gemini, OpenAI, or the local Windows voice.
 Voice playback is serialized so responses never talk over each other. A newer
 ElevenLabs response cancels stale streaming audio, and switching VOICE off cancels
 queued speech immediately.
+
+Cancellation now covers every cloud provider: if a newer answer arrives while OpenAI
+or Gemini is still generating speech, the obsolete audio is discarded before playback.
+ElevenLabs setup validates access through the read-only models endpoint, so the connection
+test does not spend speech credits.
 
 Natural corrections also teach the local learner. After a misunderstood command,
 say `no, I meant open calculator` or `no, quise decir open calculator`; JARVIS+

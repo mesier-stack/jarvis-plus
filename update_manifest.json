@@ -1,6 +1,6 @@
 {
-  "version": "3.5.0",
+  "version": "3.6.0",
   "download_url": "https://raw.githubusercontent.com/mesier-stack/jarvis-plus/main/JARVIS-Plus-Latest-Windows.zip",
-  "sha256": "2df7624f2e306edaf1f8d59b90dfee700b15933b8f8703dd5c74d9a86289ad32",
-  "notes": "Responsive non-overlapping voice, stale ElevenLabs stream cancellation, instant voice mute, and natural bilingual mistake corrections."
+  "sha256": "cf5ac59bf6911329a9ccfeccd522fcb8907562f2c7013d880aa955443d740164",
+  "notes": "Cross-provider stale voice cancellation, credit-free ElevenLabs validation, safer voice replacement, and 26 verified tests."
 }

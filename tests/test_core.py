@@ -3,9 +3,17 @@ import unittest
 import os
 import zipfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from jarvis_core import AIClient, JarvisBrain, MemoryStore, SafeCalculator, SystemActions, VoiceEngine
+from jarvis_core import (
+    AIClient,
+    JarvisBrain,
+    MemoryStore,
+    SafeCalculator,
+    SystemActions,
+    VoiceEngine,
+    verify_elevenlabs_key,
+)
 from updater import _safe_archive_members, version_tuple
 
 
@@ -81,6 +89,31 @@ class JarvisCoreTests(unittest.TestCase):
         voice._speech_generation = 3
         voice.stop()
         self.assertFalse(voice._is_current_speech(3))
+
+    def test_stale_elevenlabs_failure_does_not_start_fallback_voice(self):
+        voice = VoiceEngine.__new__(VoiceEngine)
+        voice.enabled = True
+        voice._state_lock = __import__("threading").Lock()
+        voice._speech_generation = 2
+        with patch.dict(
+            os.environ,
+            {"ELEVENLABS_API_KEY": "voice-test", "OPENAI_API_KEY": "chat-test"},
+            clear=True,
+        ), patch.object(voice, "_speak_elevenlabs", side_effect=RuntimeError("cancelled")), patch.object(
+            voice, "_speak_openai"
+        ) as fallback:
+            voice._speak_cloud("old response", generation=1)
+        fallback.assert_not_called()
+
+    def test_elevenlabs_key_check_uses_models_without_speech_generation(self):
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'[{"can_do_text_to_speech": true}]'
+        response.__enter__.return_value = response
+        with patch("jarvis_core.urlopen", return_value=response) as open_url:
+            verify_elevenlabs_key("secret-elevenlabs-key")
+        request = open_url.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.elevenlabs.io/v1/models")
 
     def test_language_preference_persists(self):
         reply = self.brain.handle("speak Spanish")
