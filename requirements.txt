@@ -1,0 +1,10 @@
+openai>=1.100.0
+google-genai>=1.0.0
+psutil>=6.0.0
+pyttsx3>=2.98
+SpeechRecognition>=3.14.0
+Pillow>=11.0.0
+sounddevice>=0.5.0
+numpy>=2.0.0
+pyinstaller>=6.0.0
+customtkinter>=5.2.2
