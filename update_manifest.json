@@ -1,6 +1,6 @@
 {
-  "version": "3.4.0",
+  "version": "3.5.0",
   "download_url": "https://raw.githubusercontent.com/mesier-stack/jarvis-plus/main/JARVIS-Plus-Latest-Windows.zip",
-  "sha256": "186834b0d0257069bf6a50a522c8affcf092ab73c4a1f8b3309dbf4cc9ed6ecf",
-  "notes": "Optional ElevenLabs Flash v2.5 streaming voice, VOICE SETUP, faster speech startup, and automatic voice fallback."
+  "sha256": "2df7624f2e306edaf1f8d59b90dfee700b15933b8f8703dd5c74d9a86289ad32",
+  "notes": "Responsive non-overlapping voice, stale ElevenLabs stream cancellation, instant voice mute, and natural bilingual mistake corrections."
 }

@@ -4,7 +4,7 @@ A native Windows learning assistant with a futuristic desktop HUD, local memory,
 voice input/output, safe PC controls, reminders, notes, system telemetry, a safe
 learning engine, and an optional OpenAI-powered conversational brain and natural voice.
 
-Version 3.4 uses a cinematic fullscreen reactor HUD. Press `Escape` to leave fullscreen
+Version 3.5 uses a cinematic fullscreen reactor HUD. Press `Escape` to leave fullscreen
 or `F11` to toggle it. The interface includes animated targeting rings, a voice
 waveform, system telemetry, learning status, quick directives, and a compact comms log.
 
@@ -108,6 +108,14 @@ and streams 24 kHz PCM directly to the speakers, so playback begins while audio 
 still being generated. The key is stored only in the current Windows user's environment.
 If ElevenLabs is unavailable or its quota is exhausted, JARVIS+ automatically falls
 back to Gemini, OpenAI, or the local Windows voice.
+
+Voice playback is serialized so responses never talk over each other. A newer
+ElevenLabs response cancels stale streaming audio, and switching VOICE off cancels
+queued speech immediately.
+
+Natural corrections also teach the local learner. After a misunderstood command,
+say `no, I meant open calculator` or `no, quise decir open calculator`; JARVIS+
+will remember the corrected mapping while keeping the normal safety checks.
 
 ## Build a standalone EXE
 

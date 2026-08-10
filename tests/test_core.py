@@ -65,6 +65,23 @@ class JarvisCoreTests(unittest.TestCase):
         report = self.brain.handle("learning report")
         self.assertIn("1 corrections stored", report.text)
 
+    def test_natural_spanish_correction_is_learned(self):
+        self.brain.handle("abre los números")
+        learned = self.brain.handle("no, quise decir open calculator")
+        self.assertEqual(learned.kind, "learning")
+        with patch.object(SystemActions, "open_app", return_value=(True, "Opening calculator.")) as launch:
+            self.brain.handle("abre los números")
+        launch.assert_called_once_with("calculator")
+
+    def test_voice_stop_invalidates_queued_speech(self):
+        voice = VoiceEngine.__new__(VoiceEngine)
+        voice.enabled = True
+        voice._engine = None
+        voice._state_lock = __import__("threading").Lock()
+        voice._speech_generation = 3
+        voice.stop()
+        self.assertFalse(voice._is_current_speech(3))
+
     def test_language_preference_persists(self):
         reply = self.brain.handle("speak Spanish")
         self.assertEqual(reply.voice_language, "es-CL")

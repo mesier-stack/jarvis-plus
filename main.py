@@ -544,6 +544,8 @@ class JarvisApp(ctk.CTk):
 
     def _toggle_voice(self) -> None:
         self.voice.enabled = not self.voice.enabled
+        if not self.voice.enabled:
+            self.voice.stop()
         self.voice_btn.configure(
             text=f"VOICE  {self.voice.speed.upper() if self.voice.enabled else 'OFF'}"
         )

@@ -339,6 +339,9 @@ class VoiceEngine:
         self.enabled = True
         self.language = language
         self.speed = speed if speed in self.SPEED_RATES else "fast"
+        self._speech_lock = threading.Lock()
+        self._state_lock = threading.Lock()
+        self._speech_generation = 0
         self._engine = None
         try:
             import pyttsx3
@@ -407,15 +410,38 @@ class VoiceEngine:
     def speak(self, text: str) -> None:
         if not self.enabled:
             return
+        with self._state_lock:
+            self._speech_generation += 1
+            generation = self._speech_generation
+        with self._speech_lock:
+            if not self._is_current_speech(generation):
+                return
+            self._speak_current(text, generation)
+
+    def stop(self) -> None:
+        """Cancel queued speech and interrupt streaming audio when possible."""
+        with self._state_lock:
+            self._speech_generation += 1
+        if self._engine:
+            try:
+                self._engine.stop()
+            except Exception:
+                pass
+
+    def _is_current_speech(self, generation: int) -> bool:
+        with self._state_lock:
+            return self.enabled and generation == self._speech_generation
+
+    def _speak_current(self, text: str, generation: int) -> None:
         speech_limits = {"fast": 320, "normal": 460, "slow": 600}
         clean = re.sub(r"[*_`#]", "", text)[:speech_limits[self.speed]]
         if self.cloud_available:
             try:
-                self._speak_cloud(clean)
+                self._speak_cloud(clean, generation)
                 return
             except Exception:
                 pass
-        if not self._engine:
+        if not self._engine or not self._is_current_speech(generation):
             return
         try:
             self._engine.say(clean)
@@ -423,10 +449,10 @@ class VoiceEngine:
         except Exception:
             pass
 
-    def _speak_cloud(self, text: str) -> None:
+    def _speak_cloud(self, text: str, generation: int | None = None) -> None:
         if self.cloud_provider == "elevenlabs":
             try:
-                self._speak_elevenlabs(text)
+                self._speak_elevenlabs(text, generation)
                 return
             except Exception:
                 if os.getenv("OPENAI_API_KEY"):
@@ -477,7 +503,7 @@ class VoiceEngine:
         finally:
             Path(temp_name).unlink(missing_ok=True)
 
-    def _speak_elevenlabs(self, text: str) -> None:
+    def _speak_elevenlabs(self, text: str, generation: int | None = None) -> None:
         """Stream low-latency 24 kHz PCM directly to the speakers."""
         import sounddevice as sd
 
@@ -515,6 +541,8 @@ class VoiceEngine:
         ) as output:
             pending = b""
             while True:
+                if generation is not None and not self._is_current_speech(generation):
+                    break
                 chunk = response.read(4096)
                 if not chunk:
                     break
@@ -775,6 +803,21 @@ class JarvisBrain:
             self.memory.learn_command(self.last_command, canonical)
             return AssistantReply(
                 f"Correction stored. Next time “{self.last_command}” will run as “{canonical}”.",
+                "learning",
+            )
+
+        natural_correction = re.match(
+            r"^(?:no\s*[,;:]?\s*)?(?:i meant|what i meant was|quise decir|me refería a|me referia a)\s+(.+)$",
+            original,
+            re.I,
+        )
+        if natural_correction:
+            if not self.last_command:
+                return AssistantReply("I don't have a previous command to correct yet.", "error")
+            canonical = natural_correction.group(1).strip()
+            self.memory.learn_command(self.last_command, canonical)
+            return AssistantReply(
+                f"Understood. I learned that “{self.last_command}” means “{canonical}”.",
                 "learning",
             )
 
