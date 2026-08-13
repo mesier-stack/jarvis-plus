@@ -36,6 +36,28 @@ class JarvisCoreTests(unittest.TestCase):
         self.brain.handle("note buy the Ryzen")
         self.assertIn("buy the Ryzen", self.brain.handle("my notes").text)
 
+    def test_private_memory_roundtrip_and_relevance(self):
+        saved = self.brain.handle("remember that my agency uses teal branding")
+        self.assertEqual(saved.kind, "memory")
+        result = self.brain.handle("what do you remember about my agency")
+        self.assertIn("teal branding", result.text)
+
+    def test_private_memory_can_be_forgotten(self):
+        self.brain.handle("recuerda que mi color favorito es azul")
+        removed = self.brain.handle("olvida el recuerdo mi color favorito es azul")
+        self.assertIn("eliminado", removed.text.lower())
+        self.assertEqual(self.brain.memory.list_memories(), [])
+
+    def test_memories_are_passed_to_ai_as_data(self):
+        self.brain.memory.remember("Dante's agency uses teal branding")
+        fake_ai = MagicMock()
+        fake_ai.available = True
+        fake_ai.answer.return_value = "Understood."
+        self.brain.ai = fake_ai
+        self.brain.handle("suggest colors for my agency")
+        memories = fake_ai.answer.call_args.args[2]
+        self.assertIn("Dante's agency uses teal branding", memories)
+
     def test_power_requires_confirmation(self):
         reply = self.brain.handle("shutdown")
         self.assertEqual(reply.requires_confirmation, "shutdown")
@@ -147,6 +169,27 @@ class JarvisCoreTests(unittest.TestCase):
     def test_slow_voice_setting_persists(self):
         reply = self.brain.handle("voice slower")
         self.assertEqual(reply.voice_speed, "slow")
+
+    def test_voice_profile_persists(self):
+        reply = self.brain.handle("voice profile executive")
+        self.assertEqual(reply.voice_profile, "executive")
+        self.assertEqual(self.brain.memory.get_setting("voice_profile"), "executive")
+
+    def test_spanish_voice_profile_alias(self):
+        reply = self.brain.handle("perfil de voz tranquilo")
+        self.assertEqual(reply.voice_profile, "calm")
+
+    def test_safe_volume_control_routes_to_allowlisted_action(self):
+        with patch.object(SystemActions, "media_key", return_value=(True, "Volume raised.")) as media:
+            reply = self.brain.handle("sube el volumen")
+        media.assert_called_once_with("up")
+        self.assertEqual(reply.kind, "action")
+
+    def test_show_desktop_routes_to_fixed_action(self):
+        with patch.object(SystemActions, "show_desktop", return_value=(True, "Desktop displayed.")) as desktop:
+            reply = self.brain.handle("mostrar escritorio")
+        desktop.assert_called_once_with()
+        self.assertEqual(reply.kind, "action")
 
     def test_google_ai_studio_key_selects_gemini(self):
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}, clear=True):

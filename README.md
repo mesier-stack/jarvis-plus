@@ -4,7 +4,9 @@ A native Windows learning assistant with a futuristic desktop HUD, local memory,
 voice input/output, safe PC controls, reminders, notes, system telemetry, a safe
 learning engine, and an optional OpenAI-powered conversational brain and natural voice.
 
-Version 3.7 introduces the MK IV circular intelligence interface. Press `Escape` to
+Version 4.0 adds private smart memories, hands-free continuous conversation,
+four voice/personality profiles, and expanded allowlisted Windows controls. It keeps
+the MK IV circular intelligence interface. Press `Escape` to
 leave fullscreen or `F11` to toggle it. The circular core now dominates the screen,
 with layered mechanical rings, radial ticks, cyan/teal illumination, restrained amber
 accents, centered `J.A.R.V.I.S.` identification, floating telemetry, quick directives,
@@ -62,6 +64,9 @@ immediately. Never paste an API key into chat.
 - `PC status` / `estado del PC`
 - `calculate (45 * 8) / 3`
 - `note buy the Ryzen` / `anota llamar al cliente`
+- `remember that my agency uses teal branding` / `recuerda que mi agencia usa azul`
+- `what do you remember about my agency` / `qué recuerdas de mi agencia`
+- `forget memory my agency uses teal` / `olvida el recuerdo mi agencia usa azul`
 - `show my notes` / `mis notas`
 - `remind me in 10 minutes to study`
 - `remind me to test Jarvis in 1 minute`
@@ -71,6 +76,9 @@ immediately. Never paste an API key into chat.
 - `forget launch numbers`
 - `speak Spanish`, `speak English`, or `bilingual mode`
 - `search RTX 5060 Chile`
+- `volume up`, `volume down`, `mute` / `sube el volumen`, `baja el volumen`, `silencia`
+- `show desktop` / `mostrar escritorio`
+- `open downloads`, `open documents`, `open settings`, or `open task manager`
 - `take a screenshot`
 - `lock PC`, `restart PC`, or `shutdown`
 
@@ -85,9 +93,20 @@ small wording differences, and can be reviewed with `learning report` or removed
 with `forget ...`. Learning never creates shell commands or bypasses the app
 allowlist: a learned shutdown still requires the same visible confirmation.
 
+## Smart private memory
+
+JARVIS+ remembers personal facts only when you explicitly say `remember that ...` or
+`recuerda que ...`. It retrieves only relevant facts for AI conversation, treats them
+as data rather than instructions, and stores everything in the existing local SQLite
+database under `%APPDATA%\JarvisPlus`. Review them with `show memories` and remove one
+with `forget memory ...`. Updates never replace this database.
+
 ## Wake word and voice
 
-Use **LISTEN** for one command, or enable **WAKE WORD** and begin with “Jarvis”.
+Use **LISTEN** for one command, or enable **CONVERSE** for a hands-free back-and-forth.
+In continuous mode JARVIS waits until its own voice ends before reopening the microphone,
+preventing feedback. Typing a new message or pressing **LISTEN** immediately cancels
+current speech, so you stay in control.
 Voice recognition uses the microphone and Google Speech Recognition; text commands
 and local memory continue to work when voice or internet is unavailable.
 
@@ -102,6 +121,11 @@ Fast voice is now the default: it begins with a brisker delivery and only reads 
 essential first part of very long answers while leaving the complete answer visible.
 Say or type `voice faster`, `voice normal`, or `voice slower` to change the persistent
 speed. Use `voice test` to preview it.
+
+Choose **cinematic**, **swift**, **calm**, or **executive** from the profile button, or
+say `voice profile calm` / `perfil de voz ejecutivo`. The selection persists and tunes
+both delivery and conversational personality without imitating real people or protected
+characters.
 
 ### ElevenLabs low-latency voice
 

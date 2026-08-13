@@ -55,12 +55,14 @@ class JarvisApp(ctk.CTk):
         self.brain = JarvisBrain()
         language = self.brain.memory.get_setting("voice_language", "auto")
         speed = self.brain.memory.get_setting("voice_speed", "fast")
-        self.voice = VoiceEngine(language, speed)
+        profile = self.brain.memory.get_setting("voice_profile", "cinematic")
+        self.voice = VoiceEngine(language, speed, profile)
         self.stop_event = threading.Event()
         self.inbox: queue.Queue[tuple[str, object]] = queue.Queue()
         self.angle = 0.0
         self.listening = False
-        self.wake_mode = False
+        self.conversation_mode = False
+        self.processing = False
         self.fullscreen = True
         self.update_client = UpdateClient()
         self.update_info: UpdateInfo | None = None
@@ -358,9 +360,12 @@ class JarvisApp(ctk.CTk):
         controls.pack_propagate(False)
         self.voice_btn = self._small_control(controls, f"VOICE  {self.voice.speed.upper()}", self._toggle_voice)
         self.voice_btn.pack(side="left", padx=(12, 4), pady=22)
-        self.wake_btn = self._small_control(controls, "WAKE  OFF", self._toggle_wake)
+        self.wake_btn = self._small_control(controls, "CONVERSE  OFF", self._toggle_wake)
         self.wake_btn.pack(side="left", padx=4, pady=22)
-        self._small_control(controls, "GUIDE", self._show_help).pack(side="left", padx=4, pady=22)
+        self.profile_btn = self._small_control(
+            controls, self.voice.profile.upper(), self._cycle_profile
+        )
+        self.profile_btn.pack(side="left", padx=4, pady=22)
 
     def _small_control(self, parent, text: str, command):
         return ctk.CTkButton(
@@ -472,6 +477,8 @@ class JarvisApp(ctk.CTk):
         text = self.entry.get().strip()
         if not text:
             return
+        self.voice.stop()
+        self.processing = True
         self.entry.delete(0, "end")
         self._message_bubble("you", text)
         self.state_label.configure(text="●  PROCESSING", text_color=CYAN)
@@ -496,7 +503,12 @@ class JarvisApp(ctk.CTk):
                     if payload.voice_speed:
                         self.voice.set_speed(payload.voice_speed)
                         self.voice_btn.configure(text=f"VOICE  {payload.voice_speed.upper()}")
+                    if payload.voice_profile:
+                        self.voice.set_profile(payload.voice_profile)
+                        self.profile_btn.configure(text=payload.voice_profile.upper())
+                        self.voice_btn.configure(text=f"VOICE  {self.voice.speed.upper()}")
                     self._assistant_message(payload.text, payload.kind == "error")
+                    self.after(250, lambda: setattr(self, "processing", False))
                     if payload.requires_confirmation:
                         self._confirm_power(payload.requires_confirmation)
                 elif kind == "heard":
@@ -509,10 +521,24 @@ class JarvisApp(ctk.CTk):
                         self._submit()
                     else:
                         self._assistant_message(text, True)
+                elif kind == "conversation_heard":
+                    self.listening = False
+                    ok, text = payload
+                    if ok and self.conversation_mode:
+                        self.entry.delete(0, "end")
+                        self.entry.insert(0, text)
+                        self._submit()
+                    elif self.conversation_mode:
+                        self.state_label.configure(text="●  CONVERSATION READY", text_color=GREEN)
+                elif kind == "conversation_status":
+                    if self.conversation_mode:
+                        self.state_label.configure(text="●  LISTENING CONTINUOUSLY", text_color=CYAN)
+                        self.reactor_subtitle.configure(text="NATURAL CONVERSATION LINK  //  SPEAK NOW")
                 elif kind == "reminder":
                     self._assistant_message(f"Reminder: {payload}")
                     messagebox.showinfo("JARVIS+ Reminder", str(payload))
                 elif kind == "error":
+                    self.processing = False
                     self.state_label.configure(text="●  SYSTEM ONLINE", text_color=GREEN)
                     self.reactor_subtitle.configure(text="FAULT LOGGED  //  CORE REMAINS STABLE")
                     self._assistant_message(str(payload), True)
@@ -553,7 +579,9 @@ class JarvisApp(ctk.CTk):
                     self._assistant_message(f"Gemini connection failed: {payload}", True, speak=False)
                 elif kind == "voice_ready":
                     self.voice.stop()
-                    self.voice = VoiceEngine(self.voice.language, self.voice.speed)
+                    self.voice = VoiceEngine(
+                        self.voice.language, self.voice.speed, self.voice.profile
+                    )
                     self._assistant_message(
                         "ElevenLabs voice connected. Low-latency cinematic speech is online."
                     )
@@ -571,6 +599,7 @@ class JarvisApp(ctk.CTk):
     def _listen(self) -> None:
         if self.listening:
             return
+        self.voice.stop()
         self.listening = True
         self.mic_btn.configure(text="◉  LISTENING", fg_color=CYAN_DIM)
         self.state_label.configure(text="●  VOICE LINK ACTIVE", text_color=CYAN)
@@ -649,22 +678,41 @@ class JarvisApp(ctk.CTk):
         threading.Thread(target=verify, daemon=True).start()
 
     def _toggle_wake(self) -> None:
-        self.wake_mode = not self.wake_mode
-        self.wake_btn.configure(text=f"WAKE  {'ON' if self.wake_mode else 'OFF'}")
-        if self.wake_mode:
+        self.conversation_mode = not self.conversation_mode
+        self.wake_btn.configure(
+            text=f"CONVERSE  {'ON' if self.conversation_mode else 'OFF'}"
+        )
+        if self.conversation_mode:
+            self._assistant_message(
+                "Continuous conversation online. Speak naturally after each reply; type or press LISTEN to interrupt me.",
+                speak=False,
+            )
             threading.Thread(target=self._wake_loop, daemon=True).start()
+        else:
+            self.state_label.configure(text="●  SYSTEM ONLINE", text_color=GREEN)
 
     def _wake_loop(self) -> None:
-        while self.wake_mode and not self.stop_event.is_set():
-            ok, text = VoiceEngine.listen_once(
-                timeout=4, phrase_time_limit=7, language=self.voice.language
+        while self.conversation_mode and not self.stop_event.is_set():
+            if self.processing or self.listening or self.voice.is_speaking:
+                self.stop_event.wait(0.12)
+                continue
+            self.listening = True
+            self.inbox.put(("conversation_status", True))
+            result = VoiceEngine.listen_once(
+                timeout=3, phrase_time_limit=10, language=self.voice.language
             )
-            if ok and "jarvis" in text.lower():
-                command = text.lower().split("jarvis", 1)[1].strip(" ,")
-                if command:
-                    self.inbox.put(("heard", (True, command)))
-            elif not ok and "timed out" not in text.lower():
-                self.stop_event.wait(0.5)
+            self.inbox.put(("conversation_heard", result))
+            self.stop_event.wait(0.2)
+
+    def _cycle_profile(self) -> None:
+        profiles = list(VoiceEngine.PROFILES)
+        current = profiles.index(self.voice.profile)
+        profile = profiles[(current + 1) % len(profiles)]
+        self.brain.memory.set_setting("voice_profile", profile)
+        self.voice.set_profile(profile)
+        self.profile_btn.configure(text=profile.upper())
+        self.voice_btn.configure(text=f"VOICE  {self.voice.speed.upper()}")
+        self._assistant_message(f"{profile.title()} voice and personality profile activated.")
 
     def _confirm_power(self, action: str) -> None:
         if messagebox.askyesno("JARVIS+ Security Gate", f"Authorize system {action}?"):
@@ -675,9 +723,10 @@ class JarvisApp(ctk.CTk):
 
     def _show_help(self) -> None:
         self._assistant_message(
-            "Directives: open calculator · PC status · note buy the Ryzen · remind me in "
-            "10 minutes to study · search RTX 5060 Chile · screenshot. Teach me with: "
-            "teach launch numbers => open calculator. Press Escape to leave fullscreen or F11 to toggle it."
+            "Directives: open calculator · volume up · show desktop · remember that my agency "
+            "uses teal · show memories · remind me in 10 minutes to study · screenshot. "
+            "Enable CONVERSE for hands-free chat, and cycle cinematic, swift, calm, or executive "
+            "profiles. Press Escape to leave fullscreen or F11 to toggle it."
         )
 
     def _animate_hud(self) -> None:
