@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
 from urllib.parse import quote, quote_plus
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -909,18 +910,64 @@ def configure_voice_id(voice_id: str) -> None:
             winreg.SetValueEx(registry, "ELEVENLABS_VOICE_ID", 0, winreg.REG_SZ, voice_id)
 
 
-def verify_elevenlabs_key(api_key: str) -> None:
-    """Validate an ElevenLabs key without spending speech credits."""
-    request = Request(
-        "https://api.elevenlabs.io/v1/models",
-        headers={"xi-api-key": api_key, "Accept": "application/json"},
+def verify_elevenlabs_key(api_key: str, voice_id: str) -> None:
+    """Verify the exact key, voice, model and streaming path used by JARVIS+."""
+    key = api_key.strip()
+    selected_voice = voice_id.strip()
+    if len(key) < 16 or any(character.isspace() for character in key):
+        raise ValueError("That ElevenLabs API key does not look valid")
+    if len(selected_voice) < 12 or any(character.isspace() for character in selected_voice):
+        raise ValueError("That ElevenLabs voice ID does not look valid")
+
+    endpoint = (
+        "https://api.elevenlabs.io/v1/text-to-speech/"
+        f"{quote(selected_voice, safe='')}/stream?output_format=pcm_24000"
     )
-    with urlopen(request, timeout=12) as response:
-        if response.status != 200:
-            raise RuntimeError(f"ElevenLabs returned status {response.status}")
-        models = json.loads(response.read().decode("utf-8"))
-    if not any(model.get("can_do_text_to_speech") for model in models):
-        raise RuntimeError("This ElevenLabs key cannot access a text-to-speech model")
+    payload = json.dumps(
+        {
+            "text": "Ready.",
+            "model_id": os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
+        }
+    ).encode("utf-8")
+    request = Request(
+        endpoint,
+        data=payload,
+        headers={
+            "xi-api-key": key,
+            "Content-Type": "application/json",
+            "Accept": "audio/pcm",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            if response.status != 200 or not response.read(32):
+                raise RuntimeError("ElevenLabs returned no test audio")
+    except HTTPError as exc:
+        detail = ""
+        status = ""
+        try:
+            error_payload = json.loads(exc.read().decode("utf-8", errors="replace"))
+            raw_detail = error_payload.get("detail", error_payload)
+            if isinstance(raw_detail, dict):
+                status = str(raw_detail.get("status", ""))
+                detail = str(raw_detail.get("message", ""))
+            else:
+                detail = str(raw_detail)
+        except Exception:
+            pass
+
+        if status == "invalid_api_key" or exc.code == 401 and not detail:
+            message = "API key rejected. Create a new key and copy it completely."
+        elif status in {"missing_permissions", "insufficient_permissions"} or exc.code == 403:
+            message = "The API key needs Text to Speech and Voices (Read) permissions."
+        elif status == "voice_not_found":
+            message = "That Voice ID is not available to this account. Add it to My Voices first."
+        elif status == "quota_exceeded":
+            message = "Your ElevenLabs voice credits are exhausted."
+        else:
+            message = detail[:300] or f"ElevenLabs rejected the voice test (HTTP {exc.code})."
+        raise RuntimeError(message) from None
 
 
 class JarvisBrain:

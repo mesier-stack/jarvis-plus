@@ -668,7 +668,7 @@ class JarvisApp(ctk.CTk):
 
         def verify() -> None:
             try:
-                verify_elevenlabs_key(key.strip())
+                verify_elevenlabs_key(key.strip(), voice_id.strip())
                 configure_ai_key("elevenlabs", key)
                 configure_voice_id(voice_id)
                 self.inbox.put(("voice_ready", True))

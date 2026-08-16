@@ -1,6 +1,6 @@
 {
-  "version": "4.0.0",
+  "version": "4.0.1",
   "download_url": "https://raw.githubusercontent.com/mesier-stack/jarvis-plus/main/JARVIS-Plus-Latest-Windows.zip",
-  "sha256": "b3ce22b8e33290d04c2b19843720e7e870f6521f01099cdcc43245ee0e7c112c",
-  "notes": "Adaptive Core 4.0: private smart memories, hands-free continuous conversation, interruptible speech, four persistent voice/personality profiles, and expanded allowlisted Windows controls."
+  "sha256": "49f6fb28db5136fe79b6131ff343451346780caffc80ecd77f87ff72f7c7a5c7",
+  "notes": "Voice Setup 4.0.1: fixes restricted ElevenLabs API key validation, tests the selected voice through the real low-latency stream, and reports clear key, permission, voice-access, or credit errors."
 }

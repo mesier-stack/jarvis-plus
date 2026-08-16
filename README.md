@@ -127,6 +127,11 @@ say `voice profile calm` / `perfil de voz ejecutivo`. The selection persists and
 both delivery and conversational personality without imitating real people or protected
 characters.
 
+Version 4.0.1 fixes VOICE SETUP for modern restricted ElevenLabs API keys. Setup
+now tests the selected voice through the same low-latency streaming path used by
+JARVIS+ and reports whether the real problem is the key, permissions, voice access,
+or exhausted credits. The test generates only the six-character phrase `Ready.`.
+
 ### ElevenLabs low-latency voice
 
 Press **VOICE SETUP**, paste your ElevenLabs API key, and keep the suggested voice ID

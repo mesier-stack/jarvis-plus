@@ -1,9 +1,12 @@
 import tempfile
 import unittest
 import os
+import io
+import json
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.error import HTTPError
 
 from jarvis_core import (
     AIClient,
@@ -127,15 +130,37 @@ class JarvisCoreTests(unittest.TestCase):
             voice._speak_cloud("old response", generation=1)
         fallback.assert_not_called()
 
-    def test_elevenlabs_key_check_uses_models_without_speech_generation(self):
+    def test_elevenlabs_setup_checks_selected_voice_stream(self):
         response = MagicMock()
         response.status = 200
-        response.read.return_value = b'[{"can_do_text_to_speech": true}]'
+        response.read.return_value = b"\x00\x01test-audio"
         response.__enter__.return_value = response
         with patch("jarvis_core.urlopen", return_value=response) as open_url:
-            verify_elevenlabs_key("secret-elevenlabs-key")
+            verify_elevenlabs_key("secret-elevenlabs-key", "bfGb7JTLUnZebZRiFYyq")
         request = open_url.call_args.args[0]
-        self.assertEqual(request.full_url, "https://api.elevenlabs.io/v1/models")
+        self.assertIn("bfGb7JTLUnZebZRiFYyq/stream", request.full_url)
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(json.loads(request.data)["text"], "Ready.")
+
+    def test_elevenlabs_setup_explains_voice_not_found(self):
+        body = io.BytesIO(
+            b'{"detail":{"status":"voice_not_found","message":"Voice not found"}}'
+        )
+        error = HTTPError("https://api.elevenlabs.io", 400, "Bad Request", {}, body)
+        with patch("jarvis_core.urlopen", side_effect=error), self.assertRaisesRegex(
+            RuntimeError, "not available to this account"
+        ):
+            verify_elevenlabs_key("secret-elevenlabs-key", "bfGb7JTLUnZebZRiFYyq")
+
+    def test_elevenlabs_setup_explains_missing_permissions(self):
+        body = io.BytesIO(
+            b'{"detail":{"status":"missing_permissions","message":"Missing permission"}}'
+        )
+        error = HTTPError("https://api.elevenlabs.io", 401, "Unauthorized", {}, body)
+        with patch("jarvis_core.urlopen", side_effect=error), self.assertRaisesRegex(
+            RuntimeError, "Text to Speech and Voices"
+        ):
+            verify_elevenlabs_key("secret-elevenlabs-key", "bfGb7JTLUnZebZRiFYyq")
 
     def test_language_preference_persists(self):
         reply = self.brain.handle("speak Spanish")
