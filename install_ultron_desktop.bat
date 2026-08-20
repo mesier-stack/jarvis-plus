@@ -4,16 +4,18 @@ cd /d "%~dp0"
 title Install ULTRON to Desktop
 
 if not exist "dist\ULTRON.exe" (
-  echo [ULTRON] dist\ULTRON.exe does not exist yet.
-  echo Run build_ultron_exe.bat first.
+  echo [ULTRON] ULTRON.exe not found. Building it now...
+  call build_ultron_exe.bat
+)
+
+if not exist "dist\ULTRON.exe" (
+  echo [ULTRON] Build did not produce dist\ULTRON.exe.
   pause
   exit /b 1
 )
 
-set "DESKTOP=%USERPROFILE%\Desktop"
-if not exist "%DESKTOP%" (
-  for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "DESKTOP=%%D"
-)
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "DESKTOP=%%D"
+if not defined DESKTOP set "DESKTOP=%USERPROFILE%\Desktop"
 
 copy /Y "dist\ULTRON.exe" "%DESKTOP%\ULTRON.exe" >nul
 if errorlevel 1 (
@@ -22,7 +24,11 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [ULTRON] Installed to: %DESKTOP%\ULTRON.exe
+echo.
+echo [ULTRON] Installed successfully.
+echo [ULTRON] Desktop app: %DESKTOP%\ULTRON.exe
+echo [ULTRON] The custom ULTRON icon is embedded in the executable.
+echo.
 echo Double-click ULTRON.exe to launch the core.
 pause
 endlocal
