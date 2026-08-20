@@ -26,7 +26,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-python ultron_main.py
+python ultron_entry.py
 
 if errorlevel 1 (
   echo.
