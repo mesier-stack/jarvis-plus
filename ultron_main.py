@@ -14,7 +14,7 @@ from jarvis_core import JarvisBrain, VoiceEngine
 
 ctk.set_appearance_mode("dark")
 
-APP_VERSION = "1.2"
+APP_VERSION = "1.3"
 VOID = "#030304"
 PANEL = "#09090B"
 PANEL_ALT = "#101014"
@@ -54,10 +54,11 @@ class UltronApp(ctk.CTk):
         self.angle = 0.0
         self.pulse = 0.0
         self.activity = 0.0
-        self.stars = [(random.random(), random.random(), random.choice((1, 1, 1, 2))) for _ in range(95)]
+        self.stars = [(random.random(), random.random(), random.choice((1, 1, 1, 2))) for _ in range(120)]
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
+
         self._build_header()
         self._build_body()
         self._build_command_bar()
@@ -66,15 +67,706 @@ class UltronApp(ctk.CTk):
         self.bind("<F11>", lambda _e: self._set_fullscreen(not self.fullscreen))
         self.bind("<Control-space>", lambda _e: self._start_listen_once())
 
-        self.after(30, self._animate_core)
+        self.after(25, self._animate_core)
         self.after(70, self._drain_inbox)
         self.after(250, self._tick_clock)
         self.after(700, self._refresh_metrics)
         self.protocol("WM_DELETE_WINDOW", self._close)
-        self._assistant("ULTRON core online. Vision, voice, memory, diagnostics and focus systems are standing by.", speak=False)
-        self._system("CTRL+SPACE = PUSH TO TALK  //  F11 = FULLSCREEN  //  SAY 'FOCUS MODE' FOR SHORT RESPONSES")
+
+        self._assistant(
+            "ULTRON core online. Vision, voice, memory, diagnostics and focus systems are standing by.",
+            speak=False,
+        )
+        self._system(
+            "CTRL+SPACE = PUSH TO TALK  //  F11 = FULLSCREEN  //  SAY 'FOCUS MODE' FOR SHORT RESPONSES"
+        )
 
     def _build_header(self) -> None:
-        top = ctk.CTkFrame(self, height=74, corner_radius=0, fg_color=VOID)
-        top.grid(row=0, column=0, sticky="ew", padx=20)
+        top = ctk.CTkFrame(self, height=76, corner_radius=0, fg_color=VOID)
+        top.grid(row=0, column=0, sticky="ew", padx=18)
         top.grid_columnconfigure(1, weight=1)
+        top.grid_propagate(False)
+
+        left = ctk.CTkFrame(top, fg_color="transparent")
+        left.grid(row=0, column=0, sticky="w", pady=12)
+        ctk.CTkLabel(
+            left,
+            text="ULTRON",
+            font=ctk.CTkFont("Segoe UI", 30, "bold"),
+            text_color=WHITE,
+        ).pack(side="left")
+        ctk.CTkLabel(
+            left,
+            text=" //",
+            font=ctk.CTkFont("Consolas", 18, "bold"),
+            text_color=RED,
+        ).pack(side="left", padx=(5, 10))
+        ctk.CTkLabel(
+            left,
+            text=f"ADAPTIVE INTELLIGENCE CORE  //  PRIME NODE  //  v{APP_VERSION}",
+            font=ctk.CTkFont("Consolas", 10),
+            text_color=MUTED,
+        ).pack(side="left", pady=(9, 0))
+
+        center = ctk.CTkFrame(top, fg_color="transparent")
+        center.grid(row=0, column=1)
+        self.clock = ctk.CTkLabel(
+            center,
+            text="",
+            font=ctk.CTkFont("Consolas", 18, "bold"),
+            text_color=RED,
+        )
+        self.clock.pack()
+        self.date_label = ctk.CTkLabel(
+            center,
+            text="",
+            font=ctk.CTkFont("Consolas", 9),
+            text_color=MUTED,
+        )
+        self.date_label.pack()
+
+        right = ctk.CTkFrame(top, fg_color="transparent")
+        right.grid(row=0, column=2, sticky="e")
+        self.status_badge = ctk.CTkLabel(
+            right,
+            text="  CORE ONLINE  ",
+            height=28,
+            corner_radius=4,
+            fg_color=RED_DARK,
+            text_color=RED,
+            font=ctk.CTkFont("Consolas", 9, "bold"),
+        )
+        self.status_badge.pack(side="left", padx=5)
+        self.mic_btn = self._top_button(right, "MIC", self._start_listen_once)
+        self.mic_btn.pack(side="left", padx=3)
+        self.wake_btn = self._top_button(right, "WAKE: OFF", self._toggle_wake_mode)
+        self.wake_btn.pack(side="left", padx=3)
+        self.voice_btn = self._top_button(right, "VOICE: ON", self._toggle_voice)
+        self.voice_btn.pack(side="left", padx=3)
+        self._top_button(right, "F11", lambda: self._set_fullscreen(not self.fullscreen)).pack(
+            side="left", padx=3
+        )
+        self._top_button(right, "EXIT", self._close).pack(side="left", padx=3)
+
+    def _top_button(self, parent, text: str, command):
+        return ctk.CTkButton(
+            parent,
+            text=text,
+            command=command,
+            width=78,
+            height=30,
+            corner_radius=3,
+            fg_color="transparent",
+            hover_color=RED_DARK,
+            border_width=1,
+            border_color=LINE_BRIGHT,
+            text_color=WHITE,
+            font=ctk.CTkFont("Consolas", 8, "bold"),
+        )
+
+    def _build_body(self) -> None:
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 8))
+        body.grid_columnconfigure(0, weight=5)
+        body.grid_columnconfigure(1, weight=4)
+        body.grid_rowconfigure(0, weight=1)
+
+        core_panel = ctk.CTkFrame(
+            body,
+            fg_color=PANEL,
+            corner_radius=5,
+            border_width=1,
+            border_color=LINE,
+        )
+        core_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        core_panel.grid_rowconfigure(1, weight=1)
+        core_panel.grid_columnconfigure(0, weight=1)
+
+        title = ctk.CTkFrame(core_panel, height=42, corner_radius=0, fg_color=PANEL_ALT)
+        title.grid(row=0, column=0, sticky="ew")
+        title.grid_propagate(False)
+        ctk.CTkLabel(
+            title,
+            text="CENTRAL COGNITIVE CORE",
+            font=ctk.CTkFont("Consolas", 11, "bold"),
+            text_color=RED,
+        ).pack(side="left", padx=14)
+        self.mode_label = ctk.CTkLabel(
+            title,
+            text="MODE // READY",
+            font=ctk.CTkFont("Consolas", 8),
+            text_color=MUTED,
+        )
+        self.mode_label.pack(side="right", padx=14)
+
+        self.canvas = tk.Canvas(core_panel, bg=VOID, highlightthickness=0)
+        self.canvas.grid(row=1, column=0, sticky="nsew")
+
+        telemetry = ctk.CTkFrame(
+            core_panel,
+            fg_color=PANEL_ALT,
+            corner_radius=4,
+            border_width=1,
+            border_color=LINE,
+        )
+        telemetry.place(relx=0.025, rely=0.105, width=235, height=252)
+        ctk.CTkLabel(
+            telemetry,
+            text="LIVE TELEMETRY",
+            font=ctk.CTkFont("Consolas", 9, "bold"),
+            text_color=RED,
+        ).pack(anchor="w", padx=12, pady=(10, 8))
+        self.cpu_label = self._metric(telemetry, "CPU LOAD")
+        self.ram_label = self._metric(telemetry, "MEMORY")
+        self.disk_label = self._metric(telemetry, "STORAGE")
+        self.memory_label = self._metric(telemetry, "MEMORY BANK")
+        self.ai_label = self._metric(telemetry, "AI PROVIDER")
+        self.voice_state_label = self._metric(telemetry, "VOICE LINK")
+        self.focus_label = self._metric(telemetry, "FOCUS MODE")
+
+        quick = ctk.CTkFrame(core_panel, fg_color="transparent")
+        quick.place(relx=0.79, rely=0.105, relwidth=0.18)
+        for label, command in (
+            ("SYSTEM SCAN", "ultron status"),
+            ("LOOK SCREEN", "look at my screen"),
+            ("DIAGNOSE", "diagnose my screen"),
+            ("MEMORIES", "what do you remember"),
+            ("FOCUS", "focus mode"),
+        ):
+            ctk.CTkButton(
+                quick,
+                text=label,
+                command=lambda c=command: self._quick(c),
+                height=31,
+                corner_radius=2,
+                fg_color=PANEL_ALT,
+                hover_color=RED_DARK,
+                border_width=1,
+                border_color=LINE_BRIGHT,
+                text_color=WHITE,
+                font=ctk.CTkFont("Consolas", 8, "bold"),
+            ).pack(fill="x", pady=3)
+
+        vision_chip = ctk.CTkFrame(
+            core_panel,
+            fg_color=PANEL_ALT,
+            corner_radius=4,
+            border_width=1,
+            border_color=LINE,
+        )
+        vision_chip.place(relx=0.025, rely=0.69, width=235, height=115)
+        ctk.CTkLabel(
+            vision_chip,
+            text="VISION NODE",
+            font=ctk.CTkFont("Consolas", 9, "bold"),
+            text_color=RED,
+        ).pack(anchor="w", padx=12, pady=(10, 3))
+        self.vision_state = ctk.CTkLabel(
+            vision_chip,
+            text="STANDBY",
+            font=ctk.CTkFont("Segoe UI", 18, "bold"),
+            text_color=WHITE,
+        )
+        self.vision_state.pack(anchor="w", padx=12)
+        ctk.CTkLabel(
+            vision_chip,
+            text="Screen analysis activates only on request",
+            font=ctk.CTkFont("Consolas", 7),
+            text_color=MUTED,
+        ).pack(anchor="w", padx=12, pady=(0, 8))
+
+        comms = ctk.CTkFrame(
+            body,
+            fg_color=PANEL,
+            corner_radius=5,
+            border_width=1,
+            border_color=LINE,
+        )
+        comms.grid(row=0, column=1, sticky="nsew")
+        comms.grid_rowconfigure(1, weight=1)
+        comms.grid_columnconfigure(0, weight=1)
+
+        comms_title = ctk.CTkFrame(comms, height=42, corner_radius=0, fg_color=PANEL_ALT)
+        comms_title.grid(row=0, column=0, sticky="ew")
+        comms_title.grid_propagate(False)
+        ctk.CTkLabel(
+            comms_title,
+            text="COMMUNICATION LINK",
+            font=ctk.CTkFont("Consolas", 11, "bold"),
+            text_color=RED,
+        ).pack(side="left", padx=14)
+        self.security_label = ctk.CTkLabel(
+            comms_title,
+            text="PERMISSION GATE // ARMED",
+            font=ctk.CTkFont("Consolas", 8),
+            text_color=GREEN,
+        )
+        self.security_label.pack(side="right", padx=14)
+
+        self.chat = ctk.CTkTextbox(
+            comms,
+            corner_radius=0,
+            fg_color=VOID,
+            border_width=0,
+            text_color=WHITE,
+            font=ctk.CTkFont("Consolas", 12),
+            wrap="word",
+        )
+        self.chat.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+        self.chat.configure(state="disabled")
+
+        self.confirm_frame = ctk.CTkFrame(
+            comms,
+            height=58,
+            corner_radius=3,
+            fg_color=PANEL_HI,
+            border_width=1,
+            border_color=AMBER,
+        )
+        self.confirm_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
+        self.confirm_frame.grid_columnconfigure(0, weight=1)
+        self.confirm_text = ctk.CTkLabel(
+            self.confirm_frame,
+            text="",
+            anchor="w",
+            text_color=AMBER,
+            font=ctk.CTkFont("Consolas", 9, "bold"),
+        )
+        self.confirm_text.grid(row=0, column=0, padx=10, sticky="ew")
+        ctk.CTkButton(
+            self.confirm_frame,
+            text="CONFIRM",
+            width=82,
+            command=self._confirm_pending,
+            fg_color=RED_DARK,
+            hover_color=RED_DIM,
+            border_width=1,
+            border_color=RED,
+            font=ctk.CTkFont("Consolas", 8, "bold"),
+        ).grid(row=0, column=1, padx=4, pady=8)
+        ctk.CTkButton(
+            self.confirm_frame,
+            text="CANCEL",
+            width=72,
+            command=self._cancel_pending,
+            fg_color="transparent",
+            hover_color=PANEL_ALT,
+            border_width=1,
+            border_color=LINE_BRIGHT,
+            font=ctk.CTkFont("Consolas", 8, "bold"),
+        ).grid(row=0, column=2, padx=(0, 8), pady=8)
+        self.confirm_frame.grid_remove()
+
+    def _metric(self, parent, label: str):
+        row = ctk.CTkFrame(parent, fg_color="transparent", height=27)
+        row.pack(fill="x", padx=12)
+        row.pack_propagate(False)
+        ctk.CTkLabel(
+            row,
+            text=label,
+            font=ctk.CTkFont("Consolas", 8),
+            text_color=MUTED,
+        ).pack(side="left")
+        value = ctk.CTkLabel(
+            row,
+            text="--",
+            font=ctk.CTkFont("Consolas", 8, "bold"),
+            text_color=RED,
+        )
+        value.pack(side="right")
+        return value
+
+    def _build_command_bar(self) -> None:
+        bar = ctk.CTkFrame(
+            self,
+            height=68,
+            corner_radius=0,
+            fg_color=PANEL_ALT,
+            border_width=1,
+            border_color=LINE,
+        )
+        bar.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 18))
+        bar.grid_columnconfigure(1, weight=1)
+        bar.grid_propagate(False)
+
+        ctk.CTkLabel(
+            bar,
+            text=">",
+            font=ctk.CTkFont("Consolas", 19, "bold"),
+            text_color=RED,
+        ).grid(row=0, column=0, padx=(16, 8), pady=14)
+        self.entry = ctk.CTkEntry(
+            bar,
+            placeholder_text="Issue directive...",
+            height=38,
+            corner_radius=2,
+            fg_color=VOID,
+            border_width=1,
+            border_color=LINE_BRIGHT,
+            text_color=WHITE,
+            placeholder_text_color=MUTED,
+            font=ctk.CTkFont("Consolas", 12),
+        )
+        self.entry.grid(row=0, column=1, sticky="ew", pady=13)
+        self.entry.bind("<Return>", lambda _e: self._submit())
+        self.send_btn = ctk.CTkButton(
+            bar,
+            text="EXECUTE",
+            command=self._submit,
+            width=110,
+            height=38,
+            corner_radius=2,
+            fg_color=RED_DARK,
+            hover_color=RED_DIM,
+            border_width=1,
+            border_color=RED,
+            text_color=WHITE,
+            font=ctk.CTkFont("Consolas", 10, "bold"),
+        )
+        self.send_btn.grid(row=0, column=2, padx=(12, 5))
+        self.ptt_btn = ctk.CTkButton(
+            bar,
+            text="TALK",
+            command=self._start_listen_once,
+            width=78,
+            height=38,
+            corner_radius=2,
+            fg_color="transparent",
+            hover_color=RED_DARK,
+            border_width=1,
+            border_color=LINE_BRIGHT,
+            text_color=RED,
+            font=ctk.CTkFont("Consolas", 9, "bold"),
+        )
+        self.ptt_btn.grid(row=0, column=3, padx=(4, 12))
+
+    def _submit(self) -> None:
+        if self.processing:
+            return
+        text = self.entry.get().strip()
+        if not text:
+            return
+        self.entry.delete(0, "end")
+        self._dispatch(text)
+
+    def _dispatch(self, text: str) -> None:
+        if self.processing:
+            return
+        self._user(text)
+        self.processing = True
+        self.activity = 1.0
+        self.send_btn.configure(text="PROCESSING", state="disabled")
+        self.status_badge.configure(text="  THINKING  ", text_color=AMBER)
+        self.mode_label.configure(text="MODE // COGNITION", text_color=AMBER)
+        if any(word in text.lower() for word in ("screen", "pantalla", "vision", "diagnose")):
+            self.vision_state.configure(text="ANALYZING", text_color=AMBER)
+        threading.Thread(target=self._process, args=(text,), daemon=True).start()
+
+    def _quick(self, command: str) -> None:
+        if not self.processing:
+            self._dispatch(command)
+
+    def _process(self, text: str) -> None:
+        try:
+            self.inbox.put(("reply", self.brain.handle(text)))
+        except Exception as exc:
+            self.inbox.put(("error", str(exc)))
+
+    def _handle_reply(self, reply) -> None:
+        text = getattr(reply, "text", str(reply))
+        self._assistant(text, speak=True)
+
+        language = getattr(reply, "voice_language", None)
+        speed = getattr(reply, "voice_speed", None)
+        profile = getattr(reply, "voice_profile", None)
+        if language:
+            self.voice.set_language(language)
+        if speed:
+            self.voice.set_speed(speed)
+        if profile:
+            self.voice.set_profile(profile)
+
+        confirmation = getattr(reply, "requires_confirmation", None)
+        if confirmation:
+            self.pending_confirmation = confirmation
+            self.confirm_text.configure(text=f"CONFIRM ACTION // {confirmation.upper()}")
+            self.confirm_frame.grid()
+            self.security_label.configure(text="PERMISSION GATE // PENDING", text_color=AMBER)
+
+        kind = getattr(reply, "kind", "answer")
+        if kind == "vision":
+            self.vision_state.configure(text="COMPLETE", text_color=GREEN)
+            self.after(3500, lambda: self.vision_state.configure(text="STANDBY", text_color=WHITE))
+
+    def _drain_inbox(self) -> None:
+        try:
+            while True:
+                kind, payload = self.inbox.get_nowait()
+                if kind == "reply":
+                    self._handle_reply(payload)
+                    self._finish_processing()
+                elif kind == "error":
+                    self._assistant(f"Core fault: {payload}", speak=False)
+                    self._finish_processing()
+                elif kind == "heard":
+                    self._finish_listening()
+                    heard = str(payload).strip()
+                    if heard:
+                        self._system(f"VOICE INPUT // {heard}")
+                        self._dispatch(heard)
+                elif kind == "listen_error":
+                    self._finish_listening()
+                    self._system(str(payload))
+                elif kind == "wake_heard":
+                    self._handle_wake_phrase(str(payload))
+        except queue.Empty:
+            pass
+        self.after(70, self._drain_inbox)
+
+    def _finish_processing(self) -> None:
+        self.processing = False
+        self.activity = 0.0
+        self.send_btn.configure(text="EXECUTE", state="normal")
+        self.status_badge.configure(text="  CORE ONLINE  ", text_color=RED)
+        self.mode_label.configure(text="MODE // READY", text_color=MUTED)
+
+    def _append(self, prefix: str, text: str, color: str) -> None:
+        self.chat.configure(state="normal")
+        tag = f"tag_{prefix.replace(' ', '_')}"
+        self.chat.tag_config(tag, foreground=color)
+        self.chat.insert("end", f"\n{prefix}\n", tag)
+        self.chat.insert("end", f"{text}\n")
+        self.chat.see("end")
+        self.chat.configure(state="disabled")
+
+    def _user(self, text: str) -> None:
+        self._append("DIRECTIVE", text, WHITE)
+
+    def _assistant(self, text: str, speak: bool) -> None:
+        self._append("ULTRON", text, RED)
+        if speak and self.voice_enabled:
+            threading.Thread(target=self.voice.speak, args=(text,), daemon=True).start()
+
+    def _system(self, text: str) -> None:
+        self._append("SYSTEM", text, MUTED)
+
+    def _toggle_voice(self) -> None:
+        self.voice_enabled = not self.voice_enabled
+        self.voice_btn.configure(text=f"VOICE: {'ON' if self.voice_enabled else 'OFF'}")
+        if not self.voice_enabled:
+            try:
+                self.voice.stop()
+            except Exception:
+                pass
+
+    def _start_listen_once(self) -> None:
+        if self.listening or self.processing:
+            return
+        self.listening = True
+        self.activity = 1.0
+        self.status_badge.configure(text="  LISTENING  ", text_color=GREEN)
+        self.mode_label.configure(text="MODE // AUDIO INPUT", text_color=GREEN)
+        self.ptt_btn.configure(text="LISTENING", state="disabled")
+        language = self.brain.memory.get_setting("voice_language", "auto")
+        threading.Thread(target=self._listen_worker, args=(language,), daemon=True).start()
+
+    def _listen_worker(self, language: str) -> None:
+        ok, result = self.voice.listen_once(timeout=5, phrase_time_limit=9, language=language)
+        self.inbox.put(("heard" if ok else "listen_error", result))
+
+    def _finish_listening(self) -> None:
+        self.listening = False
+        self.activity = 0.0
+        self.ptt_btn.configure(text="TALK", state="normal")
+        if not self.processing:
+            self.status_badge.configure(text="  CORE ONLINE  ", text_color=RED)
+            self.mode_label.configure(text="MODE // READY", text_color=MUTED)
+
+    def _toggle_wake_mode(self) -> None:
+        self.wake_mode = not self.wake_mode
+        self.wake_btn.configure(text=f"WAKE: {'ON' if self.wake_mode else 'OFF'}")
+        if self.wake_mode:
+            self._system("WAKE MODE ONLINE // SAY 'ULTRON' FOLLOWED BY A DIRECTIVE")
+            threading.Thread(target=self._wake_loop, daemon=True).start()
+        else:
+            self._system("WAKE MODE OFFLINE")
+
+    def _wake_loop(self) -> None:
+        while self.wake_mode:
+            if self.processing or self.listening:
+                threading.Event().wait(0.7)
+                continue
+            language = self.brain.memory.get_setting("voice_language", "auto")
+            ok, result = self.voice.listen_once(timeout=4, phrase_time_limit=7, language=language)
+            if ok and self.wake_mode:
+                self.inbox.put(("wake_heard", result))
+
+    def _handle_wake_phrase(self, phrase: str) -> None:
+        low = phrase.lower().strip()
+        if "ultron" not in low:
+            return
+        after = low.split("ultron", 1)[1].strip(" ,:-")
+        if after:
+            self._system(f"WAKE INPUT // {after}")
+            self._dispatch(after)
+        else:
+            self._assistant("Listening.", speak=True)
+            self.after(500, self._start_listen_once)
+
+    def _confirm_pending(self) -> None:
+        if not self.pending_confirmation or self.processing:
+            return
+        action = self.pending_confirmation
+        self.pending_confirmation = None
+        self.confirm_frame.grid_remove()
+        self.security_label.configure(text="PERMISSION GATE // ARMED", text_color=GREEN)
+        self._dispatch(f"confirm {action}")
+
+    def _cancel_pending(self) -> None:
+        if not self.pending_confirmation:
+            return
+        action = self.pending_confirmation
+        self.pending_confirmation = None
+        self.confirm_frame.grid_remove()
+        self.security_label.configure(text="PERMISSION GATE // ARMED", text_color=GREEN)
+        self._system(f"ACTION CANCELLED // {action}")
+
+    def _tick_clock(self) -> None:
+        now = datetime.now()
+        self.clock.configure(text=now.strftime("%H:%M:%S"))
+        self.date_label.configure(text=now.strftime("%A // %d %B %Y").upper())
+        self.after(250, self._tick_clock)
+
+    def _refresh_metrics(self) -> None:
+        try:
+            import psutil
+
+            self.cpu_label.configure(text=f"{psutil.cpu_percent():.0f}%")
+            self.ram_label.configure(text=f"{psutil.virtual_memory().percent:.0f}%")
+            root = "C:\\" if __import__("os").name == "nt" else "/"
+            self.disk_label.configure(text=f"{psutil.disk_usage(root).percent:.0f}%")
+        except Exception:
+            self.cpu_label.configure(text="ONLINE")
+            self.ram_label.configure(text="ONLINE")
+            self.disk_label.configure(text="ONLINE")
+
+        try:
+            self.memory_label.configure(text=str(len(self.brain.memory.list_memories(99))))
+        except Exception:
+            self.memory_label.configure(text="--")
+
+        try:
+            self.ai_label.configure(text=self.brain.ai.provider.upper())
+        except Exception:
+            self.ai_label.configure(text="LOCAL")
+
+        voice_state = "CLOUD" if self.voice.cloud_available else ("LOCAL" if self.voice.available else "OFFLINE")
+        self.voice_state_label.configure(text=voice_state)
+        focus = self.brain.memory.get_setting("ultron_focus", "off").upper()
+        self.focus_label.configure(text=focus)
+        self.after(1100, self._refresh_metrics)
+
+    def _animate_core(self) -> None:
+        c = self.canvas
+        w = max(c.winfo_width(), 2)
+        h = max(c.winfo_height(), 2)
+        c.delete("all")
+
+        for sx, sy, radius in self.stars:
+            x, y = sx * w, sy * h
+            c.create_oval(x, y, x + radius, y + radius, fill="#261014", outline="")
+
+        cx, cy = w / 2, h / 2
+        base = min(w, h) * 0.22
+        pulse = 1.0 + math.sin(self.pulse) * (0.025 + self.activity * 0.025)
+        radius = base * pulse
+
+        for scale, width, color in (
+            (1.62, 1, "#331017"),
+            (1.42, 2, LINE_BRIGHT),
+            (1.17, 1, "#6B151F"),
+        ):
+            r = radius * scale
+            c.create_oval(cx - r, cy - r, cx + r, cy + r, outline=color, width=width)
+
+        for offset, extent, color, width in (
+            (0, 72, RED, 3),
+            (100, 42, RED_DIM, 2),
+            (205, 58, LINE_BRIGHT, 2),
+            (285, 34, RED, 2),
+        ):
+            r = radius * 1.42
+            c.create_arc(
+                cx - r,
+                cy - r,
+                cx + r,
+                cy + r,
+                start=(self.angle + offset) % 360,
+                extent=extent,
+                style="arc",
+                outline=color,
+                width=width,
+            )
+
+        eye_w = radius * 1.35
+        eye_h = radius * 0.42
+        points = [
+            cx - eye_w,
+            cy,
+            cx - eye_w * 0.38,
+            cy - eye_h,
+            cx,
+            cy - eye_h * 0.38,
+            cx + eye_w * 0.38,
+            cy - eye_h,
+            cx + eye_w,
+            cy,
+            cx + eye_w * 0.38,
+            cy + eye_h,
+            cx,
+            cy + eye_h * 0.38,
+            cx - eye_w * 0.38,
+            cy + eye_h,
+        ]
+        c.create_polygon(points, outline=RED, fill="#140306", width=2)
+
+        iris = radius * (0.34 + self.activity * 0.05)
+        c.create_oval(cx - iris, cy - iris, cx + iris, cy + iris, fill=RED_DARK, outline=RED, width=3)
+        pupil = iris * 0.38
+        c.create_oval(cx - pupil, cy - pupil, cx + pupil, cy + pupil, fill=RED, outline="")
+
+        c.create_text(
+            cx,
+            cy + radius * 1.95,
+            text="ULTRON PRIME // ADAPTIVE CORE",
+            fill=MUTED,
+            font=("Consolas", 10, "bold"),
+        )
+        c.create_text(
+            cx,
+            cy + radius * 2.13,
+            text="LISTENING" if self.listening else ("COGNITION ACTIVE" if self.processing else "STANDING BY"),
+            fill=GREEN if self.listening else (AMBER if self.processing else RED),
+            font=("Consolas", 8, "bold"),
+        )
+
+        self.angle = (self.angle + 1.2 + self.activity * 1.8) % 360
+        self.pulse += 0.075 + self.activity * 0.045
+        self.after(25, self._animate_core)
+
+    def _set_fullscreen(self, enabled: bool) -> None:
+        self.fullscreen = bool(enabled)
+        self.attributes("-fullscreen", self.fullscreen)
+
+    def _close(self) -> None:
+        self.wake_mode = False
+        try:
+            self.voice.stop()
+        except Exception:
+            pass
+        self.destroy()
+
+
+if __name__ == "__main__":
+    app = UltronApp()
+    app.mainloop()
