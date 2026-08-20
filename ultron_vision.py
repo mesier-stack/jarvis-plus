@@ -18,6 +18,14 @@ VISION_PATTERNS = (
     "diagnose my screen", "find the error on my screen",
 )
 
+FOLLOWUP_PATTERNS = (
+    "y ahora", "ahora que", "ahora qué", "que hago ahora", "qué hago ahora",
+    "donde hago clic", "dónde hago clic", "donde clickeo", "dónde clickeo",
+    "cual aprieto", "cuál aprieto", "siguiente paso", "continua", "continúa",
+    "what now", "what do i do now", "where do i click", "which button",
+    "next step", "and now", "continue", "what should i press", "where next",
+)
+
 
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower().strip(" .!?¿¡"))
@@ -26,6 +34,11 @@ def _normalize(text: str) -> str:
 def _is_vision_request(text: str) -> bool:
     normalized = _normalize(text)
     return any(pattern in normalized for pattern in VISION_PATTERNS)
+
+
+def _is_followup(text: str) -> bool:
+    normalized = _normalize(text)
+    return any(pattern in normalized for pattern in FOLLOWUP_PATTERNS)
 
 
 def _vision_mode(text: str) -> str:
@@ -75,10 +88,11 @@ def _vision_prompt(user_text: str) -> str:
 
     return (
         "You are ULTRON, a precise private desktop assistant analyzing a screenshot from the user's own PC. "
-        "Reply in the same language as the user. Only use information actually visible in the screenshot. "
-        "Never infer passwords, hidden values, identity, private messages outside what is visibly shown, or secrets. "
-        "If a credential/token/API key is visible, do not repeat it; say that sensitive information is visible instead. "
-        "Never claim you clicked, changed, installed, sent, deleted, or executed anything. "
+        "Reply in the same language as the user, including natural mixed Spanish/English if the user mixes them. "
+        "Only use information actually visible in the screenshot. Never infer passwords, hidden values, identity, "
+        "private messages outside what is visibly shown, or secrets. If a credential/token/API key is visible, "
+        "do not repeat it; say that sensitive information is visible instead. Never claim you clicked, changed, "
+        "installed, sent, deleted, or executed anything. "
         f"{mode_instruction}\n\nUser request: {user_text}"
     )
 
@@ -114,6 +128,64 @@ def _analyze_gemini(path: Path, prompt: str) -> str:
     return (response.text or "").strip()
 
 
+def _context_followup_openai(context: str, user_text: str) -> str:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    model = os.getenv("OPENAI_MODEL") or "gpt-5.6"
+    response = client.responses.create(
+        model=model,
+        instructions=(
+            "You are ULTRON. Continue a screen-help conversation using only the previous visual analysis supplied. "
+            "Do not claim the screen is unchanged and do not invent controls that were not mentioned. If a fresh "
+            "view is necessary, explicitly tell the user to ask you to look at the screen again. Reply in the same "
+            "language or natural Spanish/English mix used by the user."
+        ),
+        input=(
+            f"Previous visual analysis:\n{context}\n\n"
+            f"User follow-up: {user_text}"
+        ),
+        max_output_tokens=500,
+    )
+    return response.output_text.strip()
+
+
+def _context_followup_gemini(context: str, user_text: str) -> str:
+    from google import genai
+
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+    model = os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
+    response = client.models.generate_content(
+        model=model,
+        contents=(
+            "You are ULTRON. Continue a screen-help conversation using only this previous visual analysis. "
+            "Do not assume the current screen is unchanged. If you need a fresh view, say so. Reply in the user's "
+            f"language or natural Spanish/English mix.\n\nPrevious visual analysis:\n{context}\n\n"
+            f"User follow-up: {user_text}"
+        ),
+    )
+    return (response.text or "").strip()
+
+
+def answer_visual_followup(context: str, user_text: str) -> str:
+    errors: list[str] = []
+    if os.getenv("OPENAI_API_KEY"):
+        try:
+            answer = _context_followup_openai(context, user_text)
+            if answer:
+                return answer
+        except Exception as exc:
+            errors.append(f"OpenAI: {exc}")
+    if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+        try:
+            answer = _context_followup_gemini(context, user_text)
+            if answer:
+                return answer
+        except Exception as exc:
+            errors.append(f"Gemini: {exc}")
+    return "I need a fresh screen scan to continue." if not errors else f"Visual follow-up failed: {' | '.join(errors)[:350]}"
+
+
 def analyze_screen(user_text: str) -> str:
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
     has_gemini = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
@@ -129,7 +201,6 @@ def analyze_screen(user_text: str) -> str:
     prompt = _vision_prompt(user_text)
     errors: list[str] = []
     try:
-        # Prefer the provider already selected by environment, but fail over if both keys exist.
         if has_openai:
             try:
                 answer = _analyze_openai(path, prompt)
@@ -156,7 +227,7 @@ def analyze_screen(user_text: str) -> str:
 
 
 def install_vision_patch() -> None:
-    """Install screen vision only for ULTRON entrypoints."""
+    """Install screen vision and session-only visual context for ULTRON entrypoints."""
     if getattr(JarvisBrain, "_ultron_vision_installed", False):
         return
 
@@ -166,10 +237,21 @@ def install_vision_patch() -> None:
         if _is_vision_request(raw):
             self.memory.add_message("user", raw.strip())
             answer = analyze_screen(raw)
-            self.memory.add_message("assistant", answer)
             success = not answer.lower().startswith(("no pude", "screen vision is installed", "la visión de pantalla"))
+            if success:
+                # Session-only: never persist arbitrary screen content as long-term memory.
+                self._ultron_last_visual_analysis = answer
+            self.memory.add_message("assistant", answer)
             self.memory.record_event(raw.strip(), answer, success)
             return AssistantReply(text=answer, kind="vision" if success else "error")
+
+        context = getattr(self, "_ultron_last_visual_analysis", "")
+        if context and _is_followup(raw):
+            self.memory.add_message("user", raw.strip())
+            answer = answer_visual_followup(context, raw)
+            self.memory.add_message("assistant", answer)
+            return AssistantReply(text=answer, kind="vision_followup")
+
         return original_handle(self, raw)
 
     JarvisBrain.handle = handle_with_vision
