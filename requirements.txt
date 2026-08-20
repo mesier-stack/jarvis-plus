@@ -3,6 +3,7 @@ google-genai>=1.0.0
 psutil>=6.0.0
 pyttsx3>=2.98
 SpeechRecognition>=3.14.0
+PyAudio>=0.2.14
 Pillow>=11.0.0
 sounddevice>=0.5.0
 numpy>=2.0.0
