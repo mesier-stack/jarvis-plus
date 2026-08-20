@@ -39,7 +39,6 @@ def _capture_screen() -> Path:
     os.close(descriptor)
     path = Path(temp_name)
     image = ImageGrab.grab(all_screens=True)
-    # Keep enough detail for text/UI while reducing API payload size.
     max_width = 1800
     if image.width > max_width:
         height = int(image.height * (max_width / image.width))
@@ -51,10 +50,10 @@ def _capture_screen() -> Path:
 def _vision_prompt(user_text: str) -> str:
     return (
         "You are ULTRON, a precise desktop assistant. Analyze this screenshot from the user's own PC. "
-        "Reply in the same language as the user. Focus on what is visibly on screen, likely errors, "
+        "Reply in the same language as the user. Focus only on what is visibly on screen, likely errors, "
         "important UI state, and concrete next steps. Never claim you clicked, changed, or executed anything. "
-        "Do not infer passwords, hidden data, or anything not visible. If the user asks a general screen question, "
-        "briefly describe the important visible elements first, then explain what they should do.\n\n"
+        "Do not infer passwords, hidden data, identities, or anything not visible. If the request is broad, "
+        "briefly describe the important visible elements first, then explain what the user can do next.\n\n"
         f"User request: {user_text}"
     )
 
@@ -63,8 +62,8 @@ def _analyze_openai(path: Path, prompt: str) -> str:
     from openai import OpenAI
 
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    client = OpenAI()
-    model = os.getenv("OPENAI_VISION_MODEL") or os.getenv("OPENAI_MODEL", "gpt-5.6")
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    model = os.getenv("OPENAI_VISION_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4.1-mini"
     response = client.responses.create(
         model=model,
         input=[
@@ -90,14 +89,16 @@ def _analyze_gemini(path: Path, prompt: str) -> str:
     from google.genai import types
 
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
-    model = os.getenv("GEMINI_VISION_MODEL") or os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+    model = os.getenv("GEMINI_VISION_MODEL") or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
     image = types.Part.from_bytes(data=path.read_bytes(), mime_type="image/png")
     response = client.models.generate_content(model=model, contents=[image, prompt])
     return (response.text or "").strip()
 
 
 def analyze_screen(user_text: str) -> str:
-    if not (os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
+    has_openai = bool(os.getenv("OPENAI_API_KEY"))
+    has_gemini = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+    if not (has_openai or has_gemini):
         return (
             "Screen vision is installed, but no vision-capable AI key is configured. "
             "Configure OpenAI or Gemini first, then ask me to look at the screen again."
@@ -106,7 +107,7 @@ def analyze_screen(user_text: str) -> str:
     path = _capture_screen()
     prompt = _vision_prompt(user_text)
     try:
-        if os.getenv("OPENAI_API_KEY"):
+        if has_openai:
             return _analyze_openai(path, prompt)
         return _analyze_gemini(path, prompt)
     except Exception as exc:
@@ -119,11 +120,7 @@ def analyze_screen(user_text: str) -> str:
 
 
 def install_vision_patch() -> None:
-    """Patch JarvisBrain.handle only for ULTRON entrypoints.
-
-    Normal JARVIS launches are untouched because this module is imported only by
-    ultron_entry.py / run_ultron.bat.
-    """
+    """Install screen vision only for ULTRON entrypoints."""
     if getattr(JarvisBrain, "_ultron_vision_installed", False):
         return
 
