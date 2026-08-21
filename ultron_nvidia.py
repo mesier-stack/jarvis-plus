@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 from ultron_core import AIClient, AssistantReply, UltronBrain
 
@@ -21,18 +22,10 @@ def install_nvidia_patch() -> None:
             return "nvidia"
         return original_provider_getter(self)
 
-    def answer(
-        self: AIClient,
-        prompt: str,
-        history: list[dict[str, str]],
-        memories: list[str] | None = None,
-        profile: str = "cinematic",
-    ) -> str:
+    def answer(self: AIClient, prompt: str, history: list[dict[str, str]], memories: list[str] | None = None, profile: str = "cinematic") -> str:
         if not os.getenv("NVIDIA_API_KEY"):
             return original_answer(self, prompt, history, memories, profile)
-
         from openai import OpenAI
-
         memory_context = "\n".join(f"- {item}" for item in (memories or [])) or "None relevant."
         system = (
             "You are ULTRON, a private user-owned Windows desktop intelligence. "
@@ -47,45 +40,35 @@ def install_nvidia_patch() -> None:
         messages.extend(history[-10:])
         if not history or history[-1].get("content") != prompt:
             messages.append({"role": "user", "content": prompt})
-
         client = OpenAI(base_url=NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"])
         completion = client.chat.completions.create(
-            model=os.getenv("NVIDIA_MODEL", NVIDIA_MODEL),
-            messages=messages,
+            model=os.getenv("NVIDIA_MODEL", NVIDIA_MODEL), messages=messages,
             temperature=float(os.getenv("NVIDIA_TEMPERATURE", "0.45")),
             top_p=float(os.getenv("NVIDIA_TOP_P", "0.9")),
-            max_tokens=int(os.getenv("NVIDIA_MAX_TOKENS", "1200")),
-            stream=False,
+            max_tokens=int(os.getenv("NVIDIA_MAX_TOKENS", "1200")), stream=False,
         )
-        content = completion.choices[0].message.content or ""
-        return content.strip()
+        return (completion.choices[0].message.content or "").strip()
 
     def handle(self: UltronBrain, raw: str) -> AssistantReply:
         low = raw.lower().strip(" .!?¿¡")
-        if low in {"test nvidia", "nvidia test", "prueba nvidia", "probar nvidia"}:
+        if low in {"test nvidia", "nvidia test", "test nvidia api", "prueba nvidia", "probar nvidia", "prueba la ai"}:
             if not os.getenv("NVIDIA_API_KEY"):
-                return AssistantReply(
-                    "NVIDIA NIM is installed, but NVIDIA_API_KEY is not configured on this PC.",
-                    "error",
-                )
+                return AssistantReply("NVIDIA NIM is installed, but NVIDIA_API_KEY is not configured on this PC.", "error")
             try:
                 from openai import OpenAI
-
+                model=os.getenv("NVIDIA_MODEL", NVIDIA_MODEL)
                 client = OpenAI(base_url=NVIDIA_BASE_URL, api_key=os.environ["NVIDIA_API_KEY"])
+                started=time.perf_counter()
                 response = client.chat.completions.create(
-                    model=os.getenv("NVIDIA_MODEL", NVIDIA_MODEL),
+                    model=model,
                     messages=[{"role": "user", "content": "Reply with exactly: NIM ONLINE"}],
-                    temperature=0,
-                    max_tokens=12,
-                    stream=False,
+                    temperature=0, max_tokens=12, stream=False,
                 )
-                text = (response.choices[0].message.content or "NIM ONLINE").strip()
-                return AssistantReply(
-                    f"NVIDIA NIM // ONLINE // {os.getenv('NVIDIA_MODEL', NVIDIA_MODEL)} // {text}",
-                    "status",
-                )
+                latency=(time.perf_counter()-started)*1000
+                text=(response.choices[0].message.content or "NIM ONLINE").strip()
+                return AssistantReply(f"NVIDIA NIM // ONLINE\nMODEL // {model}\nLATENCY // {latency:.0f} ms\nRESPONSE // {text}", "status")
             except Exception as exc:
-                return AssistantReply(f"NVIDIA NIM test failed: {exc}", "error")
+                return AssistantReply(f"NVIDIA NIM // OFFLINE\nMODEL // {os.getenv('NVIDIA_MODEL', NVIDIA_MODEL)}\nERROR // {exc}", "error")
         return original_handle(self, raw)
 
     AIClient.provider = property(provider)
