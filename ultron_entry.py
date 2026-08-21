@@ -11,6 +11,13 @@ from ultron_permissions import install_permission_patch
 from ultron_memory_categories import install_memory_category_patch
 from ultron_updater import install_update_check_patch
 from ultron_action_history import install_action_history_patch
+from ultron_router_v2 import install_router_v2_patch
+from ultron_recovery import install_recovery_patch
+from ultron_performance import install_performance_patch
+from ultron_visual_actions import install_visual_action_patch
+from ultron_screen_state import install_screen_state_patch
+from ultron_activity import install_activity_patch
+from ultron_skills_v2 import install_skills_v2_patch
 
 install_identity_patch()
 install_vision_patch()
@@ -25,6 +32,13 @@ install_permission_patch()
 install_memory_category_patch()
 install_update_check_patch()
 install_action_history_patch()
+install_router_v2_patch()
+install_recovery_patch()
+install_performance_patch()
+install_visual_action_patch()
+install_screen_state_patch()
+install_activity_patch()
+install_skills_v2_patch()
 
 import ultron_main
 from ultron_brain_ui import install_brain_ui
@@ -32,12 +46,18 @@ from ultron_overlay import install_overlay
 from ultron_watch import install_watch_mode
 from ultron_conversation import install_conversation_mode
 from ultron_command_center import install_command_center
+from ultron_permission_ui import install_permission_ui
+from ultron_runtime_v2 import install_runtime_v2
+from ultron_brain_v2 import install_brain_v2
 
 install_brain_ui(ultron_main.UltronApp)
 install_overlay(ultron_main.UltronApp)
 install_watch_mode(ultron_main.UltronApp)
 install_conversation_mode(ultron_main.UltronApp)
 install_command_center(ultron_main.UltronApp)
+install_permission_ui(ultron_main.UltronApp)
+install_runtime_v2(ultron_main.UltronApp)
+install_brain_v2()
 
 if __name__ == "__main__":
     app = ultron_main.UltronApp()
