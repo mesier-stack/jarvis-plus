@@ -49,7 +49,9 @@ install_skills_v2_patch()
 install_nvidia_patch()
 
 import ultron_main
-from ultron_brain_ui import install_brain_ui
+from ultron_ui_v3 import install_ui_v3
+from ultron_brain_ui_v3 import install_brain_ui_v3
+from ultron_ux_v3 import install_ux_v3
 from ultron_overlay import install_overlay
 from ultron_watch import install_watch_mode
 from ultron_conversation import install_conversation_mode
@@ -58,13 +60,15 @@ from ultron_permission_ui import install_permission_ui
 from ultron_runtime_v2 import install_runtime_v2
 from ultron_brain_v2 import install_brain_v2
 
-install_brain_ui(ultron_main.UltronApp)
+install_ui_v3(ultron_main.UltronApp)
 install_overlay(ultron_main.UltronApp)
 install_watch_mode(ultron_main.UltronApp)
 install_conversation_mode(ultron_main.UltronApp)
 install_command_center(ultron_main.UltronApp)
 install_permission_ui(ultron_main.UltronApp)
 install_runtime_v2(ultron_main.UltronApp)
+install_brain_ui_v3(ultron_main.UltronApp)
+install_ux_v3(ultron_main.UltronApp)
 install_brain_v2()
 
 if __name__ == "__main__":
