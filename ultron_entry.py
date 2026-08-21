@@ -14,8 +14,10 @@ install_bilingual_patch()
 
 import ultron_main
 from ultron_brain_ui import install_brain_ui
+from ultron_overlay import install_overlay
 
 install_brain_ui(ultron_main.UltronApp)
+install_overlay(ultron_main.UltronApp)
 
 if __name__ == "__main__":
     app = ultron_main.UltronApp()
