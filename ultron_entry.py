@@ -1,3 +1,4 @@
+from ultron_ctk_compat import install_customtkinter_compat
 from ultron_identity import install_identity_patch
 from ultron_vision import install_vision_patch
 from ultron_health import install_health_patch
@@ -20,6 +21,7 @@ from ultron_activity import install_activity_patch
 from ultron_skills_v2 import install_skills_v2_patch
 from ultron_nvidia import install_nvidia_patch
 
+install_customtkinter_compat()
 install_identity_patch()
 install_vision_patch()
 install_health_patch()
