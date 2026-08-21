@@ -37,6 +37,8 @@ from ultron_palette_v4 import install_palette_v4
 from ultron_resilience_v4 import install_resilience_v4
 from ultron_neural_timeline_v4 import install_neural_timeline_v4
 from ultron_visual_settings_v4 import install_visual_settings_v4
+from ultron_centers_v4 import install_centers_v4
+from ultron_brain_v4 import install_brain_v4
 from ultron_overlay import install_overlay
 from ultron_watch import install_watch_mode
 from ultron_conversation import install_conversation_mode
@@ -45,7 +47,7 @@ from ultron_permission_ui import install_permission_ui
 from ultron_runtime_v2 import install_runtime_v2
 from ultron_brain_v2 import install_brain_v2
 
-for patch in (install_ui_v3,install_overlay,install_watch_mode,install_conversation_mode,install_command_center,install_permission_ui,install_runtime_v2,install_brain_ui_v3,install_ux_v3,install_voice_state_v3,install_control_center_v4,install_palette_v4,install_resilience_v4,install_neural_timeline_v4,install_visual_settings_v4): patch(ultron_main.UltronApp)
+for patch in (install_ui_v3,install_overlay,install_watch_mode,install_conversation_mode,install_command_center,install_permission_ui,install_runtime_v2,install_brain_ui_v3,install_ux_v3,install_voice_state_v3,install_control_center_v4,install_palette_v4,install_resilience_v4,install_neural_timeline_v4,install_visual_settings_v4,install_centers_v4,install_brain_v4): patch(ultron_main.UltronApp)
 install_brain_v2()
 
 if __name__ == "__main__":
