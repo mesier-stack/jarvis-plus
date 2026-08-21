@@ -24,3 +24,5 @@ jobs:
         run: python -c "import ultron_entry; print('ULTRON import smoke test passed')"
       - name: Import every ULTRON module
         run: python tools/smoke_imports.py
+      - name: Construct ULTRON app
+        run: python tools/smoke_app.py
