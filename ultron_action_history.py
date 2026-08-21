@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime
 
-from jarvis_core import JarvisBrain
+from ultron_core import UltronBrain
 
 _HISTORY = deque(maxlen=80)
 
@@ -17,11 +17,11 @@ def get_action_history(limit: int = 20):
 
 
 def install_action_history_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_history_installed", False):
+    if getattr(UltronBrain, "_ultron_history_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle(self: JarvisBrain, raw: str):
+    def handle(self: UltronBrain, raw: str):
         _stamp("DIRECTIVE", raw)
         try:
             reply = original(self, raw)
@@ -31,5 +31,5 @@ def install_action_history_patch() -> None:
             _stamp("FAULT", str(exc))
             raise
 
-    JarvisBrain.handle = handle
-    JarvisBrain._ultron_history_installed = True
+    UltronBrain.handle = handle
+    UltronBrain._ultron_history_installed = True

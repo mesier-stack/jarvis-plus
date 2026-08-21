@@ -4,7 +4,7 @@ import re
 import time
 from pathlib import Path
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 def _clean(text: str) -> str:
@@ -16,12 +16,12 @@ def _focus_status(memory) -> bool:
 
 
 def install_focus_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_focus_installed", False):
+    if getattr(UltronBrain, "_ultron_focus_installed", False):
         return
 
-    original_handle = JarvisBrain.handle
+    original_handle = UltronBrain.handle
 
-    def handle_with_focus(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_with_focus(self: UltronBrain, raw: str) -> AssistantReply:
         low = _clean(raw)
 
         if low in {"focus mode", "modo enfoque", "ultron focus", "activar modo enfoque"}:
@@ -47,5 +47,5 @@ def install_focus_patch() -> None:
                 reply.text = "\n".join(lines[:3])
         return reply
 
-    JarvisBrain.handle = handle_with_focus
-    JarvisBrain._ultron_focus_installed = True
+    UltronBrain.handle = handle_with_focus
+    UltronBrain._ultron_focus_installed = True

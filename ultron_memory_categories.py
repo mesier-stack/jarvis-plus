@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import re
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 CATEGORIES = ("project", "preference", "task", "person", "general")
 
 
 def install_memory_category_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_memory_categories_installed", False):
+    if getattr(UltronBrain, "_ultron_memory_categories_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def wrapped(self: JarvisBrain, raw: str) -> AssistantReply:
+    def wrapped(self: UltronBrain, raw: str) -> AssistantReply:
         text = raw.strip()
         low = text.lower().strip(" .!?¿¡")
 
@@ -35,5 +35,5 @@ def install_memory_category_patch() -> None:
 
         return original(self, raw)
 
-    JarvisBrain.handle = wrapped
-    JarvisBrain._ultron_memory_categories_installed = True
+    UltronBrain.handle = wrapped
+    UltronBrain._ultron_memory_categories_installed = True

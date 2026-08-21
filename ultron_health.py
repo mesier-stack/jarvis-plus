@@ -4,7 +4,7 @@ import os
 import platform
 import re
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 HEALTH_PHRASES = {
@@ -57,12 +57,12 @@ def _health_report() -> str:
 
 
 def install_health_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_health_installed", False):
+    if getattr(UltronBrain, "_ultron_health_installed", False):
         return
 
-    original_handle = JarvisBrain.handle
+    original_handle = UltronBrain.handle
 
-    def handle_with_health(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_with_health(self: UltronBrain, raw: str) -> AssistantReply:
         normalized = re.sub(r"\s+", " ", raw.lower().strip(" .!?¿¡"))
         normalized_no_wake = re.sub(r"^(?:hey\s+)?ultron\s*[,;:\-]?\s*", "", normalized).strip()
         if normalized in HEALTH_PHRASES or normalized_no_wake in HEALTH_PHRASES or normalized_no_wake in {
@@ -75,5 +75,5 @@ def install_health_patch() -> None:
             return AssistantReply(report, "status")
         return original_handle(self, raw)
 
-    JarvisBrain.handle = handle_with_health
-    JarvisBrain._ultron_health_installed = True
+    UltronBrain.handle = handle_with_health
+    UltronBrain._ultron_health_installed = True

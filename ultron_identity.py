@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 
-from jarvis_core import AIClient, AssistantReply, JarvisBrain
+from ultron_core import AIClient, AssistantReply, UltronBrain
 
 
 _ULTRON_SYSTEM = (
@@ -89,13 +89,13 @@ def _ultron_local_reply(text: str) -> AssistantReply | None:
 
 
 def install_identity_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_identity_installed", False):
+    if getattr(UltronBrain, "_ultron_identity_installed", False):
         return
 
-    original_handle = JarvisBrain.handle
+    original_handle = UltronBrain.handle
     original_answer = AIClient.answer
 
-    def ultron_handle(self: JarvisBrain, raw: str) -> AssistantReply:
+    def ultron_handle(self: UltronBrain, raw: str) -> AssistantReply:
         text = _natural_alias(raw)
         local = _ultron_local_reply(text)
         if local is not None:
@@ -157,6 +157,6 @@ def install_identity_patch() -> None:
 
         return original_answer(self, prompt, history, memories, profile)
 
-    JarvisBrain.handle = ultron_handle
+    UltronBrain.handle = ultron_handle
     AIClient.answer = ultron_answer
-    JarvisBrain._ultron_identity_installed = True
+    UltronBrain._ultron_identity_installed = True

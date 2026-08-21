@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 _FAILURES = defaultdict(int)
 _DISABLED = set()
@@ -13,11 +13,11 @@ def disabled_modules():
 
 
 def install_recovery_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_recovery_installed", False):
+    if getattr(UltronBrain, "_ultron_recovery_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle(self: JarvisBrain, raw: str):
+    def handle(self: UltronBrain, raw: str):
         low = raw.lower().strip()
         if low in {"recovery status", "estado recovery", "recovery mode"}:
             disabled = ", ".join(disabled_modules()) or "none"
@@ -39,5 +39,5 @@ def install_recovery_patch() -> None:
                 "error",
             )
 
-    JarvisBrain.handle = handle
-    JarvisBrain._ultron_recovery_installed = True
+    UltronBrain.handle = handle
+    UltronBrain._ultron_recovery_installed = True

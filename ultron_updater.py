@@ -9,7 +9,7 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 REPO_API = "https://api.github.com/repos/mesier-stack/jarvis-plus/commits/main"
 REPO_ZIP = "https://github.com/mesier-stack/jarvis-plus/archive/refs/heads/main.zip"
@@ -105,11 +105,11 @@ shutil.rmtree(archive.parent, ignore_errors=True)
 
 
 def install_update_check_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_updater_installed", False):
+    if getattr(UltronBrain, "_ultron_updater_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def wrapped(self: JarvisBrain, raw: str) -> AssistantReply:
+    def wrapped(self: UltronBrain, raw: str) -> AssistantReply:
         low = raw.lower().strip(" .!?¿¡")
         if low in {"check for updates", "check updates", "buscar actualizaciones", "revisa actualizaciones"}:
             try:
@@ -139,5 +139,5 @@ def install_update_check_patch() -> None:
 
         return original(self, raw)
 
-    JarvisBrain.handle = wrapped
-    JarvisBrain._ultron_updater_installed = True
+    UltronBrain.handle = wrapped
+    UltronBrain._ultron_updater_installed = True

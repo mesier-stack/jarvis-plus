@@ -6,7 +6,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 VISION_PATTERNS = (
@@ -228,12 +228,12 @@ def analyze_screen(user_text: str) -> str:
 
 def install_vision_patch() -> None:
     """Install screen vision and session-only visual context for ULTRON entrypoints."""
-    if getattr(JarvisBrain, "_ultron_vision_installed", False):
+    if getattr(UltronBrain, "_ultron_vision_installed", False):
         return
 
-    original_handle = JarvisBrain.handle
+    original_handle = UltronBrain.handle
 
-    def handle_with_vision(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_with_vision(self: UltronBrain, raw: str) -> AssistantReply:
         if _is_vision_request(raw):
             self.memory.add_message("user", raw.strip())
             answer = analyze_screen(raw)
@@ -254,5 +254,5 @@ def install_vision_patch() -> None:
 
         return original_handle(self, raw)
 
-    JarvisBrain.handle = handle_with_vision
-    JarvisBrain._ultron_vision_installed = True
+    UltronBrain.handle = handle_with_vision
+    UltronBrain._ultron_vision_installed = True

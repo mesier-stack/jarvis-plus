@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from jarvis_core import AIClient, AssistantReply, JarvisBrain
+from ultron_core import AIClient, AssistantReply, UltronBrain
 
 NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 NVIDIA_MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
@@ -14,7 +14,7 @@ def install_nvidia_patch() -> None:
 
     original_provider_getter = AIClient.provider.fget
     original_answer = AIClient.answer
-    original_handle = JarvisBrain.handle
+    original_handle = UltronBrain.handle
 
     def provider(self: AIClient) -> str:
         if os.getenv("NVIDIA_API_KEY"):
@@ -60,7 +60,7 @@ def install_nvidia_patch() -> None:
         content = completion.choices[0].message.content or ""
         return content.strip()
 
-    def handle(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle(self: UltronBrain, raw: str) -> AssistantReply:
         low = raw.lower().strip(" .!?¿¡")
         if low in {"test nvidia", "nvidia test", "prueba nvidia", "probar nvidia"}:
             if not os.getenv("NVIDIA_API_KEY"):
@@ -90,5 +90,5 @@ def install_nvidia_patch() -> None:
 
     AIClient.provider = property(provider)
     AIClient.answer = answer
-    JarvisBrain.handle = handle
+    UltronBrain.handle = handle
     AIClient._ultron_nvidia_installed = True

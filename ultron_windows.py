@@ -4,7 +4,7 @@ import ctypes
 import re
 from ctypes import wintypes
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 def _norm(text: str) -> str:
@@ -33,11 +33,11 @@ def _screen_size():
 
 
 def install_window_control_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_window_control_installed", False):
+    if getattr(UltronBrain, "_ultron_window_control_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle_windows(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_windows(self: UltronBrain, raw: str) -> AssistantReply:
         low = _norm(raw)
         if not hasattr(ctypes, "windll"):
             return original(self, raw)
@@ -74,5 +74,5 @@ def install_window_control_patch() -> None:
 
         return original(self, raw)
 
-    JarvisBrain.handle = handle_windows
-    JarvisBrain._ultron_window_control_installed = True
+    UltronBrain.handle = handle_windows
+    UltronBrain._ultron_window_control_installed = True

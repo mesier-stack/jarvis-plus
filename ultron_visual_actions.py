@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import re
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 def install_visual_action_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_visual_action_installed", False):
+    if getattr(UltronBrain, "_ultron_visual_action_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle(self: JarvisBrain, raw: str):
+    def handle(self: UltronBrain, raw: str):
         low = raw.lower().strip()
         match = re.match(r"^(?:click|press|pulsa|haz click en|clic en)\s+(.+)$", low)
         if match:
@@ -30,5 +30,5 @@ def install_visual_action_patch() -> None:
             )
         return original(self, raw)
 
-    JarvisBrain.handle = handle
-    JarvisBrain._ultron_visual_action_installed = True
+    UltronBrain.handle = handle
+    UltronBrain._ultron_visual_action_installed = True

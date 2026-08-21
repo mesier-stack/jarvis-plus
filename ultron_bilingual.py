@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from jarvis_core import AssistantReply, JarvisBrain, VoiceEngine
+from ultron_core import AssistantReply, UltronBrain, VoiceEngine
 
 
 SPANISH_HINTS = {
@@ -90,9 +90,9 @@ def install_bilingual_patch() -> None:
     VoiceEngine.listen_once = bilingual_listen_once
     VoiceEngine._ultron_bilingual_installed = True
 
-    original_handle = JarvisBrain.handle
+    original_handle = UltronBrain.handle
 
-    def handle_bilingual(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_bilingual(self: UltronBrain, raw: str) -> AssistantReply:
         low = raw.lower().strip(" .!?¿¡")
         if low in {
             "bilingual mode", "modo bilingüe", "modo bilingue", "english and spanish",
@@ -106,4 +106,4 @@ def install_bilingual_patch() -> None:
             )
         return original_handle(self, raw)
 
-    JarvisBrain.handle = handle_bilingual
+    UltronBrain.handle = handle_bilingual

@@ -9,7 +9,7 @@ from datetime import datetime
 
 import customtkinter as ctk
 
-from jarvis_core import JarvisBrain, VoiceEngine
+from ultron_core import UltronBrain, VoiceEngine
 
 
 ctk.set_appearance_mode("dark")
@@ -38,7 +38,7 @@ class UltronApp(ctk.CTk):
         self.minsize(1120, 720)
         self.configure(fg_color=VOID)
 
-        self.brain = JarvisBrain()
+        self.brain = UltronBrain()
         language = self.brain.memory.get_setting("voice_language", "auto")
         speed = self.brain.memory.get_setting("voice_speed", "fast")
         profile = self.brain.memory.get_setting("voice_profile", "cinematic")

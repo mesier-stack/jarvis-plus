@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 WINDOW_PATTERNS = {
@@ -55,12 +55,12 @@ def _active_window() -> tuple[str, str]:
 
 
 def install_awareness_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_awareness_installed", False):
+    if getattr(UltronBrain, "_ultron_awareness_installed", False):
         return
 
-    original_handle = JarvisBrain.handle
+    original_handle = UltronBrain.handle
 
-    def handle_with_awareness(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_with_awareness(self: UltronBrain, raw: str) -> AssistantReply:
         low = re.sub(r"\s+", " ", raw.lower().strip(" .!?¿¡"))
         if low in WINDOW_PATTERNS:
             process, title = _active_window()
@@ -72,5 +72,5 @@ def install_awareness_patch() -> None:
             )
         return original_handle(self, raw)
 
-    JarvisBrain.handle = handle_with_awareness
-    JarvisBrain._ultron_awareness_installed = True
+    UltronBrain.handle = handle_with_awareness
+    UltronBrain._ultron_awareness_installed = True

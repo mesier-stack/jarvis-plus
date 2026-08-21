@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 def install_performance_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_performance_installed", False):
+    if getattr(UltronBrain, "_ultron_performance_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle(self: JarvisBrain, raw: str):
+    def handle(self: UltronBrain, raw: str):
         low = raw.lower().strip()
         if low in {"performance mode", "gaming mode", "modo rendimiento", "modo juego"}:
             self.memory.set_setting("ultron_performance_mode", "on")
@@ -18,5 +18,5 @@ def install_performance_patch() -> None:
             return AssistantReply("PERFORMANCE MODE OFFLINE // full interface activity restored.", "setting")
         return original(self, raw)
 
-    JarvisBrain.handle = handle
-    JarvisBrain._ultron_performance_installed = True
+    UltronBrain.handle = handle
+    UltronBrain._ultron_performance_installed = True

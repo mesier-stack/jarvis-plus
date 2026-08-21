@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 from ultron_skills import SKILLS, skill_summary
 
 
 def install_skills_v2_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_skills_v2_installed", False):
+    if getattr(UltronBrain, "_ultron_skills_v2_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle(self: JarvisBrain, raw: str):
+    def handle(self: UltronBrain, raw: str):
         low = raw.lower().strip(" .!?")
         if low in {"skills", "skill registry", "habilidades", "modulos", "módulos"}:
             lines = []
@@ -26,5 +26,5 @@ def install_skills_v2_patch() -> None:
                 return AssistantReply(f"{SKILLS[name].name} // {'ONLINE' if enabled else 'OFFLINE'}", "setting")
         return original(self, raw)
 
-    JarvisBrain.handle = handle
-    JarvisBrain._ultron_skills_v2_installed = True
+    UltronBrain.handle = handle
+    UltronBrain._ultron_skills_v2_installed = True

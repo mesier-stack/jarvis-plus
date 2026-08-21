@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 SEARCH_ROOTS = [Path.home() / name for name in ("Desktop", "Documents", "Downloads", "Pictures")]
 
@@ -71,11 +71,11 @@ def _format_paths(paths):
 
 
 def install_file_intelligence_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_files_installed", False):
+    if getattr(UltronBrain, "_ultron_files_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle_files(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_files(self: UltronBrain, raw: str) -> AssistantReply:
         low = _norm(raw)
 
         recent_patterns = {
@@ -96,5 +96,5 @@ def install_file_intelligence_patch() -> None:
 
         return original(self, raw)
 
-    JarvisBrain.handle = handle_files
-    JarvisBrain._ultron_files_installed = True
+    UltronBrain.handle = handle_files
+    UltronBrain._ultron_files_installed = True

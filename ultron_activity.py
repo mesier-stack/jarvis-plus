@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from threading import Lock
 
-from jarvis_core import JarvisBrain
+from ultron_core import UltronBrain
 
 _STATE = {"lane": "standby", "detail": "", "updated": time.time()}
 _LOCK = Lock()
@@ -20,11 +20,11 @@ def get_activity() -> dict:
 
 
 def install_activity_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_activity_installed", False):
+    if getattr(UltronBrain, "_ultron_activity_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle(self: JarvisBrain, raw: str):
+    def handle(self: UltronBrain, raw: str):
         lane = self.memory.get_setting("ultron_last_route", "cognition")
         set_activity(lane, raw)
         try:
@@ -32,5 +32,5 @@ def install_activity_patch() -> None:
         finally:
             set_activity("standby", "ready")
 
-    JarvisBrain.handle = handle
-    JarvisBrain._ultron_activity_installed = True
+    UltronBrain.handle = handle
+    UltronBrain._ultron_activity_installed = True

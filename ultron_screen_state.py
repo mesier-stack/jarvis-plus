@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import time
 
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 _LAST = {"hash": None, "time": 0.0}
 
@@ -28,11 +28,11 @@ def screen_changed(update: bool = True) -> tuple[bool | None, float]:
 
 
 def install_screen_state_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_screen_state_installed", False):
+    if getattr(UltronBrain, "_ultron_screen_state_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle(self: JarvisBrain, raw: str):
+    def handle(self: UltronBrain, raw: str):
         low = raw.lower().strip(" .!?")
         if low in {"screen changed", "did my screen change", "cambio la pantalla", "cambió la pantalla", "pantalla cambio", "pantalla cambió"}:
             try:
@@ -47,5 +47,5 @@ def install_screen_state_patch() -> None:
                 return AssistantReply(f"SCREEN STATE NODE FAULT // {exc}", "error")
         return original(self, raw)
 
-    JarvisBrain.handle = handle
-    JarvisBrain._ultron_screen_state_installed = True
+    UltronBrain.handle = handle
+    UltronBrain._ultron_screen_state_installed = True

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from jarvis_core import AssistantReply, JarvisBrain
+from ultron_core import AssistantReply, UltronBrain
 
 
 def _norm(text: str) -> str:
@@ -39,11 +39,11 @@ def _local_plan(text: str) -> str:
 
 
 def install_planner_patch() -> None:
-    if getattr(JarvisBrain, "_ultron_planner_installed", False):
+    if getattr(UltronBrain, "_ultron_planner_installed", False):
         return
-    original = JarvisBrain.handle
+    original = UltronBrain.handle
 
-    def handle_planner(self: JarvisBrain, raw: str) -> AssistantReply:
+    def handle_planner(self: UltronBrain, raw: str) -> AssistantReply:
         low = _norm(raw)
         explicit = any(x in low for x in ("make a plan", "haz un plan", "planifica", "organiza esto", "plan this"))
         if explicit:
@@ -62,5 +62,5 @@ def install_planner_patch() -> None:
             return AssistantReply(_local_plan(raw), "plan")
         return original(self, raw)
 
-    JarvisBrain.handle = handle_planner
-    JarvisBrain._ultron_planner_installed = True
+    UltronBrain.handle = handle_planner
+    UltronBrain._ultron_planner_installed = True

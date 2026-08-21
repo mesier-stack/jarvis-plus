@@ -25,16 +25,16 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
-APP_NAME = "JARVIS+"
+APP_NAME = "ULTRON"
 
 
 def _resolve_data_dir() -> Path:
-    preferred = Path(os.getenv("JARVIS_DATA_DIR") or os.getenv("APPDATA") or Path.home()) / "JarvisPlus"
+    preferred = Path(os.getenv("ULTRON_DATA_DIR") or os.getenv("APPDATA") or Path.home()) / "ULTRON"
     try:
         preferred.mkdir(parents=True, exist_ok=True)
         return preferred
     except OSError:
-        fallback = Path.cwd() / ".jarvis_data"
+        fallback = Path.cwd() / ".ultron_data"
         fallback.mkdir(parents=True, exist_ok=True)
         return fallback
 
@@ -54,7 +54,7 @@ class AssistantReply:
 
 class MemoryStore:
     def __init__(self, path: Path | None = None) -> None:
-        self.path = path or DATA_DIR / "jarvis.db"
+        self.path = path or DATA_DIR / "ultron.db"
         self._lock = threading.Lock()
         with self._connect() as db:
             db.executescript(
@@ -379,7 +379,7 @@ class SystemActions:
         try:
             from PIL import ImageGrab
 
-            folder = Path.home() / "Pictures" / "JarvisPlus"
+            folder = Path.home() / "Pictures" / "ULTRON"
             folder.mkdir(parents=True, exist_ok=True)
             path = folder / f"screenshot-{datetime.now():%Y%m%d-%H%M%S}.png"
             ImageGrab.grab().save(path)
@@ -470,7 +470,7 @@ class VoiceEngine:
 
     @property
     def cloud_available(self) -> bool:
-        return self.cloud_provider != "local" and os.getenv("JARVIS_CLOUD_VOICE", "1") != "0"
+        return self.cloud_provider != "local" and os.getenv("ULTRON_CLOUD_VOICE", "1") != "0"
 
     @property
     def cloud_provider(self) -> str:
@@ -624,13 +624,13 @@ class VoiceEngine:
             "calm": "warm, patient, and relaxed",
             "executive": "polished, strategic, and professional",
         }[self.profile]
-        file_descriptor, temp_name = tempfile.mkstemp(prefix="jarvis-voice-", suffix=".wav")
+        file_descriptor, temp_name = tempfile.mkstemp(prefix="ultron-voice-", suffix=".wav")
         os.close(file_descriptor)
         try:
             client = OpenAI()
             with client.audio.speech.with_streaming_response.create(
                 model="gpt-4o-mini-tts",
-                voice=os.getenv("JARVIS_VOICE", "cedar"),
+                voice=os.getenv("ULTRON_VOICE", "cedar"),
                 input=text,
                 instructions=(
                     f"{language_style} {pace_style} Sound {profile_style}. Use a low register, crisp British diction, "
@@ -701,7 +701,7 @@ class VoiceEngine:
         import winsound
         from google import genai
 
-        file_descriptor, temp_name = tempfile.mkstemp(prefix="jarvis-gemini-", suffix=".wav")
+        file_descriptor, temp_name = tempfile.mkstemp(prefix="ultron-gemini-", suffix=".wav")
         os.close(file_descriptor)
         try:
             client = genai.Client(
@@ -821,7 +821,7 @@ class AIClient:
         response = client.responses.create(
             model=self.model,
             instructions=(
-                "You are JARVIS+, a precise, proactive Windows desktop assistant. "
+                "You are ULTRON, a precise, proactive Windows desktop assistant. "
                 "Talk naturally and fluently, like a trusted long-term partner—not a command bot. "
                 "Be concise for simple requests and detailed when useful. Remember context from the "
                 "conversation provided. Never claim that you executed a computer action; the local "
@@ -846,7 +846,7 @@ class AIClient:
             api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         )
         transcript = "\n".join(
-            f"{'Dante' if item['role'] == 'user' else 'JARVIS+'}: {item['content']}"
+            f"{'Dante' if item['role'] == 'user' else 'ULTRON'}: {item['content']}"
             for item in history[-10:]
         )
         memory_context = "\n".join(f"- {item}" for item in memories) or "None relevant."
@@ -859,7 +859,7 @@ class AIClient:
         interaction = client.interactions.create(
             model=self.gemini_model,
             system_instruction=(
-                "You are JARVIS+, Dante's precise, proactive Windows desktop assistant. "
+                "You are ULTRON, Dante's precise, proactive Windows desktop assistant. "
                 "Talk naturally and fluently like a trusted long-term partner. Be concise for "
                 "simple requests and detailed when useful. Never claim that you executed a PC "
                 "action; protected local code handles actions. Reply in Dante's current language."
@@ -911,7 +911,7 @@ def configure_voice_id(voice_id: str) -> None:
 
 
 def verify_elevenlabs_key(api_key: str, voice_id: str) -> None:
-    """Verify the exact key, voice, model and streaming path used by JARVIS+."""
+    """Verify the exact key, voice, model and streaming path used by ULTRON."""
     key = api_key.strip()
     selected_voice = voice_id.strip()
     if len(key) < 16 or any(character.isspace() for character in key):
@@ -970,7 +970,7 @@ def verify_elevenlabs_key(api_key: str, voice_id: str) -> None:
         raise RuntimeError(message) from None
 
 
-class JarvisBrain:
+class UltronBrain:
     def __init__(self, memory: MemoryStore | None = None) -> None:
         self.memory = memory or MemoryStore()
         self.ai = AIClient()
@@ -1145,7 +1145,7 @@ class JarvisBrain:
 
         if low in {"who are you", "what are you", "what is your name", "what's your name", "quién eres", "quien eres"}:
             return AssistantReply(
-                "I'm JARVIS+, your private Windows assistant. I can control allowlisted PC actions, "
+                "I'm ULTRON, your private Windows assistant. I can control allowlisted PC actions, "
                 "remember corrections, and talk naturally when an AI provider is connected."
             )
 
