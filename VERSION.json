@@ -1,0 +1,16 @@
+{
+  "name": "ULTRON",
+  "version": "2.0.0-dev",
+  "channel": "beta",
+  "build": "2026.08.21",
+  "highlights": [
+    "UI v3 cinematic shell",
+    "Brain Screen v4",
+    "NVIDIA Nemotron health checks",
+    "Control Center and Command Palette",
+    "Memory, Vision and Voice centers",
+    "Updater backup and rollback",
+    "Profiles, diagnostics and notifications",
+    "Neural activity timeline and safe skills runtime"
+  ]
+}
