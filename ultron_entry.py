@@ -18,6 +18,7 @@ from ultron_visual_actions import install_visual_action_patch
 from ultron_screen_state import install_screen_state_patch
 from ultron_activity import install_activity_patch
 from ultron_skills_v2 import install_skills_v2_patch
+from ultron_nvidia import install_nvidia_patch
 
 install_identity_patch()
 install_vision_patch()
@@ -39,6 +40,7 @@ install_visual_action_patch()
 install_screen_state_patch()
 install_activity_patch()
 install_skills_v2_patch()
+install_nvidia_patch()
 
 import ultron_main
 from ultron_brain_ui import install_brain_ui
