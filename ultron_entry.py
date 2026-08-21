@@ -1,3 +1,7 @@
+from ultron_branding import install_ultron_branding
+
+install_ultron_branding()
+
 from ultron_ctk_compat import install_customtkinter_compat
 from ultron_identity import install_identity_patch
 from ultron_vision import install_vision_patch
