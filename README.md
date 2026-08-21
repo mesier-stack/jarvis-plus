@@ -1,177 +1,64 @@
-# JARVIS+
+# ULTRON
 
-A native Windows learning assistant with a futuristic desktop HUD, local memory,
-voice input/output, safe PC controls, reminders, notes, system telemetry, a safe
-learning engine, and an optional OpenAI-powered conversational brain and natural voice.
+ULTRON is a private Windows desktop intelligence with bilingual English/Spanish conversation, NVIDIA Nemotron support, screen vision, local memory, voice, safe Windows controls, permission gates, telemetry, an animated neural-brain interface, overlay controls, recovery mode, performance mode, watch mode, and self-updates.
 
-Version 4.0 adds private smart memories, hands-free continuous conversation,
-four voice/personality profiles, and expanded allowlisted Windows controls. It keeps
-the MK IV circular intelligence interface. Press `Escape` to
-leave fullscreen or `F11` to toggle it. The circular core now dominates the screen,
-with layered mechanical rings, radial ticks, cyan/teal illumination, restrained amber
-accents, centered `J.A.R.V.I.S.` identification, floating telemetry, quick directives,
-and a dedicated conversation panel. The original vector graphics are drawn at runtime,
-so they remain sharp at different resolutions without bundling copied artwork or watermarks.
+## Run
 
-## Fast start on Windows
-
-1. Install **Python 3.11 or newer** from python.org and enable “Add Python to PATH”.
-2. Double-click `run_jarvis.bat`.
-3. The first launch installs its dependencies; later launches are immediate.
-
-The microphone uses PyAudio when available and automatically falls back to
-SoundDevice on Windows, avoiding the most common voice-installation failure.
-
-## Automatic updates
-
-Version 3.2 includes the automatic-update client. JARVIS+ checks
-for a newer signed-off package at launch and also provides an **UPDATE** button.
-It downloads over HTTPS, verifies the package SHA-256 checksum, rejects unexpected
-files, closes safely, replaces only application files, and restarts itself.
-
-Updates never replace `.env`, `.venv`, or the private database under `%APPDATA%`.
-An update is never installed until you approve the visible confirmation.
-
-## Activate an AI brain (optional)
-
-JARVIS+ works without an API key for all local commands. For natural conversation,
-create an OpenAI API key and run this once in PowerShell:
+Double-click `run_ultron.bat`, or run:
 
 ```powershell
+python ultron_entry.py
+```
+
+## AI providers
+
+ULTRON can use NVIDIA NIM, OpenAI, or Gemini. Keep API keys in Windows environment variables, never in source code:
+
+```powershell
+setx NVIDIA_API_KEY "your-key"
 setx OPENAI_API_KEY "your-key"
-setx OPENAI_MODEL "gpt-5.6"
+setx GEMINI_API_KEY "your-key"
 ```
 
-Close and reopen JARVIS+ afterward. Keep the key private and never put it in the
-source code or send it in chat. API use can cost money according to your account.
-When configured, both the fluent chat brain and natural AI-generated voice activate.
+NVIDIA Nemotron is used as a reasoning provider when `NVIDIA_API_KEY` is available. Vision can use a compatible multimodal provider when configured.
 
-Alternatively, use a Google AI Studio key for Gemini chat and Gemini natural voice:
+## Voice
+
+ULTRON supports ElevenLabs, OpenAI/Gemini speech where available, and a local Windows fallback.
 
 ```powershell
-setx GEMINI_API_KEY "your-google-ai-studio-key"
+setx ELEVENLABS_API_KEY "your-key"
+setx ELEVENLABS_VOICE_ID "your-voice-id"
 ```
 
-JARVIS+ automatically detects the provider. If both keys exist, OpenAI has priority.
-The easiest setup is the **AI SETUP** button inside JARVIS+: paste the key into the
-private masked window. On Windows it is saved to your user environment and activated
-immediately. Never paste an API key into chat.
+## Useful commands
 
-## Things to say or type
+- `Ultron, revisa tus sistemas`
+- `Ultron, mira mi pantalla`
+- `Ultron, router status`
+- `Ultron, focus mode`
+- `Ultron, check for updates`
+- `Ultron, update ultron`
+- `Ultron, open Spotify`
+- `Ultron, what app am I using?`
+- `Ultron, find file ciencias`
+- `Ultron, performance mode`
 
-- `Jarvis, open calculator` / `abre calculadora`
-- `open the calculator` / `abre la calculadora`
-- `PC status` / `estado del PC`
-- `calculate (45 * 8) / 3`
-- `note buy the Ryzen` / `anota llamar al cliente`
-- `remember that my agency uses teal branding` / `recuerda que mi agencia usa azul`
-- `what do you remember about my agency` / `qué recuerdas de mi agencia`
-- `forget memory my agency uses teal` / `olvida el recuerdo mi agencia usa azul`
-- `show my notes` / `mis notas`
-- `remind me in 10 minutes to study`
-- `remind me to test Jarvis in 1 minute`
-- `teach launch numbers => open calculator`
-- `wrong, use open calculator` (corrects the previous command)
-- `learning report`
-- `forget launch numbers`
-- `speak Spanish`, `speak English`, or `bilingual mode`
-- `search RTX 5060 Chile`
-- `volume up`, `volume down`, `mute` / `sube el volumen`, `baja el volumen`, `silencia`
-- `show desktop` / `mostrar escritorio`
-- `open downloads`, `open documents`, `open settings`, or `open task manager`
-- `take a screenshot`
-- `lock PC`, `restart PC`, or `shutdown`
+## Security model
 
-Shutdown, restart, and locking always require a visible confirmation. AI responses
-cannot directly execute operating-system actions.
+ULTRON separates reasoning from local actions. Protected or destructive actions are permission-gated. Screen analysis is on-demand, temporary screen context is session-only, and API keys are read from the Windows user environment rather than committed to the repository.
 
-## Safe learning system
+## Architecture
 
-JARVIS+ records misunderstood attempts locally and learns phrase-to-command
-corrections you explicitly provide. Learned phrases survive restarts, tolerate
-small wording differences, and can be reviewed with `learning report` or removed
-with `forget ...`. Learning never creates shell commands or bypasses the app
-allowlist: a learned shutdown still requires the same visible confirmation.
+The runtime is organized into `ultron_*` modules for identity, AI routing, NVIDIA, vision, bilingual speech, awareness, memory, files, planner, permissions, Windows control, recovery, performance, skills, updater, overlay, command center, and the neural-brain UI.
 
-## Smart private memory
+## Updating
 
-JARVIS+ remembers personal facts only when you explicitly say `remember that ...` or
-`recuerda que ...`. It retrieves only relevant facts for AI conversation, treats them
-as data rather than instructions, and stores everything in the existing local SQLite
-database under `%APPDATA%\JarvisPlus`. Review them with `show memories` and remove one
-with `forget memory ...`. Updates never replace this database.
-
-## Wake word and voice
-
-Use **LISTEN** for one command, or enable **CONVERSE** for a hands-free back-and-forth.
-In continuous mode JARVIS waits until its own voice ends before reopening the microphone,
-preventing feedback. Typing a new message or pressing **LISTEN** immediately cancels
-current speech, so you stay in control.
-Voice recognition uses the microphone and Google Speech Recognition; text commands
-and local memory continue to work when voice or internet is unavailable.
-
-With an OpenAI key, JARVIS+ uses `gpt-4o-mini-tts` and the `cedar` voice. With a
-Google AI Studio key, it uses Gemini TTS and the mature `Gacrux` voice. Both use an
-original low-register, measured British-style delivery and are AI-generated,
-not human recordings. If cloud speech fails, the app falls back to an installed
-Windows voice. Without either API key, command chat works locally, but open-ended
-conversation is limited because no language model is available.
-
-Fast voice is now the default: it begins with a brisker delivery and only reads the
-essential first part of very long answers while leaving the complete answer visible.
-Say or type `voice faster`, `voice normal`, or `voice slower` to change the persistent
-speed. Use `voice test` to preview it.
-
-Choose **cinematic**, **swift**, **calm**, or **executive** from the profile button, or
-say `voice profile calm` / `perfil de voz ejecutivo`. The selection persists and tunes
-both delivery and conversational personality without imitating real people or protected
-characters.
-
-Version 4.0.1 fixes VOICE SETUP for modern restricted ElevenLabs API keys. Setup
-now tests the selected voice through the same low-latency streaming path used by
-JARVIS+ and reports whether the real problem is the key, permissions, voice access,
-or exhausted credits. The test generates only the six-character phrase `Ready.`.
-
-### ElevenLabs low-latency voice
-
-Press **VOICE SETUP**, paste your ElevenLabs API key, and keep the suggested voice ID
-or paste another ID from ElevenLabs **My Voices**. JARVIS+ uses `eleven_flash_v2_5`
-and streams 24 kHz PCM directly to the speakers, so playback begins while audio is
-still being generated. The key is stored only in the current Windows user's environment.
-If ElevenLabs is unavailable or its quota is exhausted, JARVIS+ automatically falls
-back to Gemini, OpenAI, or the local Windows voice.
-
-Voice playback is serialized so responses never talk over each other. A newer
-ElevenLabs response cancels stale streaming audio, and switching VOICE off cancels
-queued speech immediately.
-
-Cancellation now covers every cloud provider: if a newer answer arrives while OpenAI
-or Gemini is still generating speech, the obsolete audio is discarded before playback.
-ElevenLabs setup validates access through the read-only models endpoint, so the connection
-test does not spend speech credits.
-
-Natural corrections also teach the local learner. After a misunderstood command,
-say `no, I meant open calculator` or `no, quise decir open calculator`; JARVIS+
-will remember the corrected mapping while keeping the normal safety checks.
-
-## Build a standalone EXE
-
-Double-click `build_exe.bat`. The packaged program appears under `dist\JARVIS+\`.
-Move that complete folder anywhere on the same PC. The database remains private in:
+Once the current updater is installed, say or type:
 
 ```text
-%APPDATA%\JarvisPlus\jarvis.db
+check for updates
+update ultron
 ```
 
-## Architecture and security
-
-- `main.py`: native Tkinter HUD, voice controls, animation, and confirmations.
-- `jarvis_core.py`: intent engine, local memory, AI client, and allowlisted actions.
-- `updater.py`: checksum-verified updater that preserves private data and settings.
-- No arbitrary shell command from chat is executed.
-- Destructive power commands are never automatic.
-- Notes, reminders, and conversation memory stay in a local SQLite database.
-- The API key is read only from the Windows environment.
-
-This is the first complete release foundation: features can be added by extending
-`JarvisBrain._local_command` and the allowlist in `SystemActions.APP_COMMANDS`.
+The updater downloads the current main branch, refreshes dependencies, preserves Windows environment API keys, and reopens ULTRON.
