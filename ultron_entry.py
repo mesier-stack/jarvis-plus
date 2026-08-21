@@ -1,5 +1,4 @@
 from ultron_branding import install_ultron_branding
-
 install_ultron_branding()
 
 from ultron_ctk_compat import install_customtkinter_compat
@@ -25,34 +24,16 @@ from ultron_activity import install_activity_patch
 from ultron_skills_v2 import install_skills_v2_patch
 from ultron_nvidia import install_nvidia_patch
 
-install_customtkinter_compat()
-install_identity_patch()
-install_vision_patch()
-install_health_patch()
-install_focus_patch()
-install_awareness_patch()
-install_bilingual_patch()
-install_file_intelligence_patch()
-install_planner_patch()
-install_window_control_patch()
-install_permission_patch()
-install_memory_category_patch()
-install_update_check_patch()
-install_action_history_patch()
-install_router_v2_patch()
-install_recovery_patch()
-install_performance_patch()
-install_visual_action_patch()
-install_screen_state_patch()
-install_activity_patch()
-install_skills_v2_patch()
-install_nvidia_patch()
+for patch in (install_customtkinter_compat,install_identity_patch,install_vision_patch,install_health_patch,install_focus_patch,install_awareness_patch,install_bilingual_patch,install_file_intelligence_patch,install_planner_patch,install_window_control_patch,install_permission_patch,install_memory_category_patch,install_update_check_patch,install_action_history_patch,install_router_v2_patch,install_recovery_patch,install_performance_patch,install_visual_action_patch,install_screen_state_patch,install_activity_patch,install_skills_v2_patch,install_nvidia_patch): patch()
 
 import ultron_main
 from ultron_ui_v3 import install_ui_v3
 from ultron_brain_ui_v3 import install_brain_ui_v3
 from ultron_ux_v3 import install_ux_v3
 from ultron_voice_state_v3 import install_voice_state_v3
+from ultron_control_center_v4 import install_control_center_v4
+from ultron_palette_v4 import install_palette_v4
+from ultron_resilience_v4 import install_resilience_v4
 from ultron_overlay import install_overlay
 from ultron_watch import install_watch_mode
 from ultron_conversation import install_conversation_mode
@@ -61,18 +42,8 @@ from ultron_permission_ui import install_permission_ui
 from ultron_runtime_v2 import install_runtime_v2
 from ultron_brain_v2 import install_brain_v2
 
-install_ui_v3(ultron_main.UltronApp)
-install_overlay(ultron_main.UltronApp)
-install_watch_mode(ultron_main.UltronApp)
-install_conversation_mode(ultron_main.UltronApp)
-install_command_center(ultron_main.UltronApp)
-install_permission_ui(ultron_main.UltronApp)
-install_runtime_v2(ultron_main.UltronApp)
-install_brain_ui_v3(ultron_main.UltronApp)
-install_ux_v3(ultron_main.UltronApp)
-install_voice_state_v3(ultron_main.UltronApp)
+for patch in (install_ui_v3,install_overlay,install_watch_mode,install_conversation_mode,install_command_center,install_permission_ui,install_runtime_v2,install_brain_ui_v3,install_ux_v3,install_voice_state_v3,install_control_center_v4,install_palette_v4,install_resilience_v4): patch(ultron_main.UltronApp)
 install_brain_v2()
 
 if __name__ == "__main__":
-    app = ultron_main.UltronApp()
-    app.mainloop()
+    app=ultron_main.UltronApp(); app.mainloop()
