@@ -7,6 +7,9 @@ from ultron_bilingual import install_bilingual_patch
 from ultron_files import install_file_intelligence_patch
 from ultron_planner import install_planner_patch
 from ultron_windows import install_window_control_patch
+from ultron_permissions import install_permission_patch
+from ultron_memory_categories import install_memory_category_patch
+from ultron_updater import install_update_check_patch
 
 install_identity_patch()
 install_vision_patch()
@@ -17,15 +20,20 @@ install_bilingual_patch()
 install_file_intelligence_patch()
 install_planner_patch()
 install_window_control_patch()
+install_permission_patch()
+install_memory_category_patch()
+install_update_check_patch()
 
 import ultron_main
 from ultron_brain_ui import install_brain_ui
 from ultron_overlay import install_overlay
 from ultron_watch import install_watch_mode
+from ultron_conversation import install_conversation_mode
 
 install_brain_ui(ultron_main.UltronApp)
 install_overlay(ultron_main.UltronApp)
 install_watch_mode(ultron_main.UltronApp)
+install_conversation_mode(ultron_main.UltronApp)
 
 if __name__ == "__main__":
     app = ultron_main.UltronApp()
