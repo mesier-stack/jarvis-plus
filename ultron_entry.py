@@ -12,6 +12,11 @@ install_focus_patch()
 install_awareness_patch()
 install_bilingual_patch()
 
-import runpy
+import ultron_main
+from ultron_brain_ui import install_brain_ui
 
-runpy.run_path("ultron_main.py", run_name="__main__")
+install_brain_ui(ultron_main.UltronApp)
+
+if __name__ == "__main__":
+    app = ultron_main.UltronApp()
+    app.mainloop()
