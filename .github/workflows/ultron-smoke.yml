@@ -21,21 +21,4 @@ jobs:
       - name: Import entrypoint
         run: python -c "import ultron_entry; print('ULTRON import smoke test passed')"
       - name: Import every ULTRON module
-        shell: pwsh
-        run: |
-          python - <<'PY'
-          import importlib, pathlib, sys
-          failed=[]
-          for p in pathlib.Path('.').glob('ultron*.py'):
-              name=p.stem
-              try:
-                  importlib.import_module(name)
-                  print('OK', name)
-              except Exception as e:
-                  failed.append((name, repr(e)))
-                  print('FAIL', name, repr(e))
-          if failed:
-              print('\nFAILED MODULES:')
-              for item in failed: print(item)
-              raise SystemExit(1)
-          PY
+        run: python tools/smoke_imports.py
