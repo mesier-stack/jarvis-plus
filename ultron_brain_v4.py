@@ -22,7 +22,23 @@ class BrainV4(ctk.CTkToplevel):
         self.nodes=self._nodes(); self.links=self._links(); self.grid_columnconfigure(0,weight=1); self.grid_columnconfigure(1,weight=0); self.grid_rowconfigure(1,weight=1)
         self._header(); self._network(); self._inspector(); self.after(30,self._animate); self.after(200,self._poll)
     def _nodes(self):
-        return [Node("core","PRIME CORE",0,0,"core","Central orchestration and cognition."),Node("router","ROUTER",-1.2,-.25,"logic","Routes directives into modules."),Node("language","ES / EN",-1.15,.65,"logic","Automatic bilingual interpretation."),Node("memory","MEMORY",-.55,-1.0,"data","Persistent local memory bank."),Node("vision","VISION",.55,-1.0,"sense","On-demand screen perception."),Node("voice","VOICE",1.2,-.25,"sense","Speech input and output."),Node("nvidia","NEMOTRON",1.15,.65,"ai","NVIDIA NIM reasoning provider."),Node("planner",.55,1.1,"logic","Multi-step plan construction."),Node("actions",-.55,1.1,"action","Permission-gated Windows actions."),Node("permissions",-1.8,1.1,"guard","Confirmation and risk gate."),Node("files",-1.8,-1.05,"data","File discovery and local context."),Node("recovery",1.8,-1.05,"guard","Fault isolation and recovery."),Node("updater",1.8,1.1,"system","Update, backup and rollback."),Node("skills",0,1.75,"system","Safe skill manifest registry."),Node("telemetry",0,-1.7,"system","CPU, RAM and runtime metrics.")]
+        return [
+            Node("core","PRIME CORE",0,0,"core","Central orchestration and cognition."),
+            Node("router","ROUTER",-1.2,-.25,"logic","Routes directives into modules."),
+            Node("language","ES / EN",-1.15,.65,"logic","Automatic bilingual interpretation."),
+            Node("memory","MEMORY",-.55,-1.0,"data","Persistent local memory bank."),
+            Node("vision","VISION",.55,-1.0,"sense","On-demand screen perception."),
+            Node("voice","VOICE",1.2,-.25,"sense","Speech input and output."),
+            Node("nvidia","NEMOTRON",1.15,.65,"ai","NVIDIA NIM reasoning provider."),
+            Node("planner","PLANNER",.55,1.1,"logic","Multi-step plan construction."),
+            Node("actions","ACTIONS",-.55,1.1,"action","Permission-gated Windows actions."),
+            Node("permissions","PERMISSIONS",-1.8,1.1,"guard","Confirmation and risk gate."),
+            Node("files","FILES",-1.8,-1.05,"data","File discovery and local context."),
+            Node("recovery","RECOVERY",1.8,-1.05,"guard","Fault isolation and recovery."),
+            Node("updater","UPDATER",1.8,1.1,"system","Update, backup and rollback."),
+            Node("skills","SKILLS",0,1.75,"system","Safe skill manifest registry."),
+            Node("telemetry","TELEMETRY",0,-1.7,"system","CPU, RAM and runtime metrics."),
+        ]
     def _links(self):
         return [("core",k) for k in ("router","memory","vision","voice","nvidia","planner","actions")]+[("router","language"),("router","nvidia"),("memory","files"),("vision","nvidia"),("voice","language"),("planner","actions"),("actions","permissions"),("core","recovery"),("core","updater"),("core","skills"),("core","telemetry")]
     def _header(self):
@@ -60,6 +76,7 @@ class BrainV4(ctk.CTkToplevel):
         for n in self.nodes: self.positions[n.key]=self._world(n,w,h)
         active=1.0 if self.app.processing else (.75 if self.app.listening else .18)
         for idx,(a,b) in enumerate(self.links):
+            if a not in self.positions or b not in self.positions: continue
             x1,y1=self.positions[a]; x2,y2=self.positions[b]; hot=(math.sin(self.phase*.11+idx)+1)/2>.72 and active>.4; c.create_line(x1,y1,x2,y2,fill=RED if hot else "#351016",width=2 if hot else 1)
             if active>.4:
                 t=(self.phase*.012+idx*.13)%1; x=x1+(x2-x1)*t; y=y1+(y2-y1)*t; c.create_oval(x-2,y-2,x+2,y+2,fill=RED,outline="")
