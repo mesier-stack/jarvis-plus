@@ -26,3 +26,5 @@ jobs:
         run: python tools/smoke_imports.py
       - name: Construct ULTRON app
         run: python tools/smoke_app.py
+      - name: Construct major UI panels
+        run: python tools/smoke_panels.py
